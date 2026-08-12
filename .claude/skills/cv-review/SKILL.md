@@ -43,22 +43,27 @@ Ask for anything missing before starting:
    - Seniority/level fit (20%): does the CV read as the right level for this posting?
    - Compute `total` as the weighted sum.
 6. Pool weaknesses from both layers and pick the worst 3 overall (not 3 from each).
-7. Edit `cv.tex` directly to fix those 3 weaknesses. If a fix involves rephrasing an
-   experience bullet, also update the matching entry in `master-data.md` so the
-   improved phrasing is available for future CVs.
+7. Edit `cv.tex` directly to fix those 3 weaknesses. If a fix rephrases an experience
+   bullet, note the improved wording — you'll write it into `master-data.md` at step
+   12. Do **not** edit `master-data.md` on this branch: it is authoritative on `main`
+   only, so editing it here would fragment it across industry branches.
 8. Compile-check the edit using whichever of these is found first on the system:
    `latexmk`, then `pdflatex`, then `tectonic` (check with e.g. `which latexmk`).
    - If none are found, skip this step and note in your final report that
      compilation was not verified.
    - If found, compile `cv.tex`. On failure, run `git checkout -- cv.tex` to revert
      the edit, report the compile error to the user, and stop — do not commit.
-9. Commit the `cv.tex` (and `master-data.md`, if changed) on the industry branch:
-   `git add cv.tex master-data.md && git commit -m "Review: <company> <role>"`
+9. Commit `cv.tex` on the industry branch (this file only — see step 7):
+   `git add cv.tex && git commit -m "Review: <company> <role>"`
+   Record the resulting commit SHA (`git rev-parse HEAD`) for step 12's `cv_commit`.
 10. Re-score both layers against the fixed `cv.tex` (repeat steps 4-6). This is the
     final check — report the before/after scores. Do not block on any threshold; the
     user decides if it's ready.
 11. Switch to `main`: `git checkout main`.
-12. Append an entry to `applications/log.yaml` with this shape:
+12. On `main`, do both of these:
+    a. Apply the improved bullet wording noted in step 7 to the matching entries in
+       `master-data.md`, so future CVs inherit the improvement.
+    b. Append an entry to `applications/log.yaml` with this shape:
     ```yaml
     - id: <company-slug>-<industry>-<yyyy-mm>
       company: "<company>"
@@ -86,7 +91,8 @@ Ask for anything missing before starting:
       outcome: pending
       outcome_date: null
     ```
-13. Commit: `git add applications/log.yaml && git commit -m "Log application: <company> <role>"`
+13. Commit both on `main`:
+    `git add applications/log.yaml master-data.md && git commit -m "Log application: <company> <role>"`
 14. Switch back to the industry branch: `git checkout <industry-branch>`.
 15. Report to the user: initial Base/JD Fit scores, the 3 weaknesses fixed and why,
     and the final re-scored numbers.
@@ -96,3 +102,6 @@ Ask for anything missing before starting:
 - Dirty working tree at step 1 → stop, do not switch branches.
 - JD URL unreachable → ask the user to paste the text.
 - Compile failure at step 8 → revert, report, stop before committing.
+- `master-data.md` showing up as modified on an industry branch → you edited it in the
+  wrong place. Revert it there (`git checkout -- master-data.md`) and redo the edit on
+  `main` at step 12.
