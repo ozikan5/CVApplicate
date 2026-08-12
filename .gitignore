@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+credentials.json
+secrets.yaml
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.toc
+*.bbl
+*.blg
+*.nav
+*.snm
+
+# Personal content — safe place to stage real data before forking to your own repo.
+# Never commit real CV content, real application history, or a real Overleaf remote here.
+/private/
+/personal/
+*.local.tex
+*.local.md
+*.local.yaml
