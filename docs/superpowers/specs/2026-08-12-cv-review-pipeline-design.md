@@ -74,7 +74,9 @@ and the experience bank as one continuous timeline.
 4. Score **JD Fit** /100 against the specific posting.
 5. Identify the combined worst 3 weaknesses across both layers.
 6. Edit `cv.tex` directly to fix them; update `master-data.md` with any improved phrasing.
-7. If a local LaTeX toolchain is available, compile-check the edit:
+7. Compile-check the edit using whichever of these is found first on the system:
+   `latexmk`, then `pdflatex`, then `tectonic`. If none are found, skip this step and
+   note in the final report that compilation was not verified.
    - Pass → proceed.
    - Fail → revert the edit, report the compile error, do not commit.
 8. Commit the `cv.tex` change on the industry branch.
@@ -154,7 +156,7 @@ worst 3, regardless of which layer they came from.
   date_applied: 2026-08-12
   jd_source: pasted        # or "url"
   jd_url: null
-  jd_summary: "Short summary of key requirements"
+  jd_summary: "AI-generated 1-2 sentence summary of the JD's key requirements"
   cv_commit: <git sha of the cv.tex used>
   base_quality_score:
     total: 82
