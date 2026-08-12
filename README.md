@@ -36,7 +36,17 @@ Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-sci
 3. Add your Overleaf project as a git remote to keep it in sync.
 4. Run `cv-new-industry` for each field you're targeting, then `cv-review` per application.
 
+## Notes
+
+`master-data.md` and `applications/log.yaml` are authoritative on `main` — the skills
+commit changes to them there, so your experience bank and application history stay
+unified no matter how many industry branches you have. Only `cv.tex` diverges per branch.
+
+The skills live in the repo, so they're branched too. After editing a skill on `main`,
+merge `main` into your industry branches to keep them in sync.
+
 ## Status
 
-Design is finalized — see [`docs/superpowers/specs/`](docs/superpowers/specs/). Skills are
-being implemented.
+All four skills are implemented and validated end-to-end. See
+[`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
+[`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
