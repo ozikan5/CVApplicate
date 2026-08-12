@@ -1,0 +1,29 @@
+# Application history. See docs/superpowers/specs/2026-08-12-cv-review-pipeline-design.md
+# for the full field reference. New entries are appended by the cv-review skill;
+# outcome/outcome_date are updated by the cv-log-outcome skill.
+
+- id: example-corp-swe-2026-08
+  company: "Example Corp"
+  role: "Software Engineer Intern"
+  industry_branch: swe
+  date_applied: 2026-08-12
+  jd_source: pasted
+  jd_url: null
+  jd_summary: "Backend-focused SWE internship requiring Python, distributed systems familiarity, and experience with REST APIs."
+  cv_commit: "0000000000000000000000000000000000000"
+  base_quality_score:
+    total: 82
+    impact: 78
+    competencies: 85
+    presentation: 80
+  jd_fit_score:
+    total: 74
+    keyword_match: 70
+    experience_relevance: 80
+    seniority_fit: 70
+  weak_points_fixed:
+    - "Bullet 3 in the Research Assistant entry lacked a quantified outcome"
+    - "Skills section didn't surface REST API experience explicitly requested in the JD"
+    - "Course Scheduler project bullet used passive voice"
+  outcome: pending
+  outcome_date: null
