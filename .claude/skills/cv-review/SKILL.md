@@ -28,7 +28,10 @@ Ask for anything missing before starting:
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted — do not proceed until it's clean.
 2. Run `git checkout <industry-branch>`.
-3. Read `cv.tex` and `master-data.md` in full.
+3. Read `cv.tex`, `master-data.md`, and `claims-guardrails.md` in full.
+   **The guardrails are binding.** They state how each claim may and may not be
+   phrased — metric scopes, ownership verbs, production status, attribution limits.
+   Never write a bullet that violates one, even if it would score higher.
 4. **Score Base Quality /100** using this rubric:
    - Impact (40%): strong action verbs, specificity, quantified outcomes
    - Competencies (35%): skills/qualifications vs. general expectations for the field
@@ -43,10 +46,13 @@ Ask for anything missing before starting:
    - Seniority/level fit (20%): does the CV read as the right level for this posting?
    - Compute `total` as the weighted sum.
 6. Pool weaknesses from both layers and pick the worst 3 overall (not 3 from each).
-7. Edit `cv.tex` directly to fix those 3 weaknesses. If a fix rephrases an experience
-   bullet, note the improved wording — you'll write it into `master-data.md` at step
-   12. Do **not** edit `master-data.md` on this branch: it is authoritative on `main`
-   only, so editing it here would fragment it across industry branches.
+7. Edit `cv.tex` directly to fix those 3 weaknesses, staying within
+   `claims-guardrails.md` at all times. If the JD tempts you toward a stronger claim
+   than the guardrails permit, or toward something not grounded in `master-data.md`,
+   keep the honest phrasing and report the gap instead — never invent experience. If a
+   fix rephrases an experience bullet, note the improved wording — you'll write it into
+   `master-data.md` at step 12. Do **not** edit `master-data.md` on this branch: it is
+   authoritative on `main` only, so editing it here would fragment it across branches.
 8. Compile-check the edit using whichever of these is found first on the system:
    `latexmk`, then `pdflatex`, then `tectonic` (check with e.g. `which latexmk`).
    - If none are found, skip this step and note in your final report that
@@ -95,13 +101,20 @@ Ask for anything missing before starting:
     `git add applications/log.yaml master-data.md && git commit -m "Log application: <company> <role>"`
 14. Switch back to the industry branch: `git checkout <industry-branch>`.
 15. Report to the user: initial Base/JD Fit scores, the 3 weaknesses fixed and why,
-    and the final re-scored numbers.
+    the final re-scored numbers, and — separately — any JD requirement you could not
+    honestly satisfy from `master-data.md` within the guardrails. That gap list is
+    often the most useful part of the report: it tells the user what to actually go
+    build or document, rather than what to word differently.
 
 ## Error handling
 
 - Dirty working tree at step 1 → stop, do not switch branches.
 - JD URL unreachable → ask the user to paste the text.
 - Compile failure at step 8 → revert, report, stop before committing.
+- A guardrail conflicts with what would maximize the score → the guardrail wins. Report
+  the tension rather than resolving it in the CV's favor.
+- `claims-guardrails.md` missing → proceed, but say so in the report and be conservative
+  with metric scopes, ownership verbs, and production-status wording.
 - `master-data.md` showing up as modified on an industry branch → you edited it in the
   wrong place. Revert it there (`git checkout -- master-data.md`) and redo the edit on
   `main` at step 12.

@@ -37,11 +37,16 @@ Read every bullet in `cv.tex` and flag:
 
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted.
-2. Read `cv.tex` in full.
+2. Read `cv.tex`, plus `claims-guardrails.md` and `master-data.md` if they exist.
 3. Identify every instance of the patterns above, with the specific bullet/line
-   affected.
+   affected. Also flag any bullet that violates `claims-guardrails.md` — an overstated
+   metric scope, an ownership verb stronger than the work supports, or something
+   described as live that isn't.
 4. Edit `cv.tex` to fix each one — vary word choice, add concrete specifics where a
    claim is vague, fix tense consistency, vary sentence structure.
+   **Fixing "vague" must never mean inflating.** Pull real specifics from
+   `master-data.md`; if none exist, leave the claim modest and say so in the report.
+   Never resolve vagueness by inventing a number.
 5. Compile-check the edit using whichever of these is found first on the system:
    `latexmk`, then `pdflatex`, then `tectonic`.
    - If none are found, skip this step and note in your final report that
