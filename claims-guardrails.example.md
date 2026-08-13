@@ -1,4 +1,10 @@
-# Claims Guardrails
+# Claims Guardrails — example
+
+> Copy this to `claims-guardrails.md` and replace the examples with your own:
+> `cp claims-guardrails.example.md claims-guardrails.md`
+>
+> The skills read `claims-guardrails.md`, not this file. Keeping them separate means
+> pulling template updates never conflicts with your own guardrails.
 
 Constraints on how the material in `master-data.md` may be phrased on your CV.
 

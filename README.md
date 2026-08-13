@@ -13,11 +13,13 @@ CV, experience, and Overleaf sync to make it yours.
 
 ```
 CVApplicate/
-├── cv.tex                  Placeholder LaTeX CV
-├── master-data.md          Your experience/education/skills bank
-├── applications/log.yaml   History of applications, scores, and outcomes
-├── .claude/skills/         The four skills below
-└── docs/                   Design spec and other project docs
+├── cv.tex                        Placeholder LaTeX CV
+├── master-data.md                Your experience/education/skills bank
+├── claims-guardrails.example.md  Template for your claim limits (copy to claims-guardrails.md)
+├── applications/log.yaml         History of applications, scores, and outcomes
+├── import-overleaf.sh            Import a CV from an Overleaf source zip
+├── .claude/skills/               The four skills below
+└── docs/                         Design spec and other project docs
 
 Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-science, ...)
 ```
@@ -35,6 +37,15 @@ Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-sci
 2. Replace the placeholder `cv.tex` and `master-data.md` with your real content.
 3. Add your Overleaf project as a git remote to keep it in sync.
 4. Run `cv-new-industry` for each field you're targeting, then `cv-review` per application.
+
+## Guardrails
+
+An AI editing your CV will drift toward overclaiming — widening a metric's scope,
+strengthening an ownership verb, calling unshipped work "live". `claims-guardrails.md`
+is where you write those limits down, and the review skills treat it as binding: when a
+job description tempts them past what's true, they keep the honest wording and report
+the gap instead. That gap list is usually the useful part — it tells you what to go
+build, not what to reword.
 
 ## Notes
 
