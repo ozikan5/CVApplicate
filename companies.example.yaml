@@ -1,0 +1,13 @@
+# Copy this file to companies.local.yaml and fill in real companies you want to
+# track. companies.local.yaml is gitignored — your real target list never gets
+# committed to this template repo.
+#
+# ats: which Applicant Tracking System the company uses.
+#   - greenhouse: find the slug in the company's careers URL, e.g.
+#     https://job-boards.greenhouse.io/<slug> or https://boards.greenhouse.io/<slug>
+#   - lever: find the slug in the company's careers URL, e.g.
+#     https://jobs.lever.co/<slug>
+
+- name: "Example Corp"
+  slug: "examplecorp"
+  ats: greenhouse
