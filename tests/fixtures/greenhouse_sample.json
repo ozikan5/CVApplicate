@@ -1,0 +1,18 @@
+{
+  "jobs": [
+    {
+      "id": 4567890,
+      "title": "Software Engineer Intern",
+      "updated_at": "2026-08-10T09:15:00-05:00",
+      "location": {"name": "Remote"},
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/4567890"
+    },
+    {
+      "id": 4567891,
+      "title": "Data Scientist",
+      "updated_at": "2026-08-11T14:30:00-05:00",
+      "location": {"name": "Chicago, IL"},
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/4567891"
+    }
+  ]
+}
