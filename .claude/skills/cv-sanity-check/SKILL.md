@@ -33,7 +33,9 @@ It reports, with line numbers:
   "worked on", "a variety of", "successfully", "utilized", …)
 - **Repeated bullet openers** — any word opening more than one bullet
 - **Overused words** — any content word appearing in more than three bullets
-- **Em-dash overuse** — more than three across the document
+- **Dash-connector overuse** — any em dash (—) or double/triple-hyphen (--, ---) used
+  as a sentence connector, anywhere in the document. Numeric ranges ("2--3s") and the
+  date ranges in `\resumeSubheading` fields are not flagged — only the connective use
 - **Uniform bullet length** — length variation under 15%, which reads as templated
 - **Unquantified bullets** — bullets containing no figure at all
 

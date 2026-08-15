@@ -132,9 +132,10 @@ Run cv-sanity-check
 ```
 
 Two passes. First `check-cv-text.py` counts what's countable — buzzwords, filler phrases,
-repeated bullet openers, overused words, em dashes, uniform bullet lengths, unquantified
-bullets — all with line numbers. Then the model reads for what a script can't see: tense
-consistency, cadence, vague-but-numbered claims.
+repeated bullet openers, overused words, dash-connectors (em dashes and double/triple
+hyphens used mid-sentence, not numeric or date ranges), uniform bullet lengths,
+unquantified bullets — all with line numbers. Then the model reads for what a script
+can't see: tense consistency, cadence, vague-but-numbered claims.
 
 You can run the detector yourself any time:
 

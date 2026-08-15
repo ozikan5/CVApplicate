@@ -65,7 +65,7 @@ BUZZWORDS = [
 OPENER_REPEAT_LIMIT = 1      # same opening word more than this = flagged
 CONTENT_WORD_LIMIT = 3       # content word appearing more than this = flagged
 BUZZWORD_LIMIT = 0           # buzzwords are flagged on any occurrence
-EM_DASH_LIMIT = 3            # em dashes across the document
+EM_DASH_LIMIT = 0            # dash-style interruptions across the document
 UNIFORMITY_CV_THRESHOLD = 0.15   # coefficient of variation below this = templated
 
 
@@ -184,18 +184,35 @@ def check_phrases(bullets, phrases, kind, limit):
     return out
 
 
+DASH_CONNECTOR_RE = re.compile(r"-{2,}")
+
+
+def _is_numeric_range(prose: str, match: "re.Match") -> bool:
+    """True for '2--3s' / '50 -- 60%' style ranges, which are a legitimate use of
+    -- distinct from the sentence-connector dash this check targets."""
+    before = prose[:match.start()].rstrip()
+    after = prose[match.end():].lstrip()
+    return bool(before) and bool(after) and before[-1].isdigit() and after[0].isdigit()
+
+
 def check_em_dashes(bullets):
+    """Flag em dashes (\u2014) and double/triple-hyphen stand-ins (--, ---) used as a
+    sentence connector. Doesn't touch single hyphens in compound words or numeric
+    ranges (2--3s), and never sees \\resumeSubheading date-range fields since those
+    aren't extracted as bullets."""
     total = 0
     lines = []
     for lineno, prose in bullets:
-        n = prose.count("\u2014") + prose.count("---")
+        n = prose.count("\u2014")
+        n += sum(1 for m in DASH_CONNECTOR_RE.finditer(prose) if not _is_numeric_range(prose, m))
         if n:
             total += n
             lines.append(lineno)
     if total > EM_DASH_LIMIT:
         return [{
             "type": "em-dash-overuse",
-            "detail": f"{total} em {plural(total, 'dash')} across {len(lines)} {plural(len(lines), 'bullet')}",
+            "detail": (f"{total} dash-style {plural(total, 'interruption')} "
+                       f"(\u2014, --, or ---) across {len(lines)} {plural(len(lines), 'bullet')}"),
             "lines": lines,
         }]
     return []
@@ -257,7 +274,7 @@ LABELS = {
     "filler": "Filler phrases",
     "repeated-opener": "Repeated bullet openers",
     "repeated-word": "Overused words",
-    "em-dash-overuse": "Em-dash overuse",
+    "em-dash-overuse": "Dash-connector overuse",
     "uniform-length": "Uniform bullet length",
     "unquantified": "Unquantified bullets",
 }

@@ -86,6 +86,33 @@ Where a result is real but not solely yours, or not yet settled.
 
 ---
 
+## Formatting rules
+
+Not every rule here has to be about truthfulness — this file is also a reasonable place
+for personal style preferences you want `cv-review` and `cv-sanity-check` to honor
+consistently, since both already read it before editing `cv.tex`.
+
+### Example: no dash-connectors
+
+- Never use an em dash or double/triple hyphen (—, --, ---) as a sentence connector in
+  a bullet. `check-cv-text.py`'s dash-connector check already flags every occurrence
+  (see `cv-sanity-check`) — this section is where you'd note *why*, if you want the
+  reasoning on record, or add exceptions the script can't infer on its own.
+- Numeric ranges ("2--3s") and the date ranges in `\resumeSubheading` fields are a
+  different, legitimate use of `--` and are not affected by this rule.
+
+### Example: approximate figures without a symbol
+
+- If you'd rather not scatter a tilde (`~`) across every rounded number, present
+  rounded/estimated figures as plain numbers instead ("910K requests/day", not
+  "~910K requests/day") — the rounding itself already signals approximation. Keep an
+  explicit hedge word ("roughly", "over") only where a specific claim needs it to avoid
+  implying false precision (see the scope-of-metric rules above).
+- This is a style choice, not a truthfulness rule: document it once here rather than
+  re-deciding it bullet by bullet.
+
+---
+
 ## How the review skills apply this
 
 1. They read this file before editing `cv.tex`.
