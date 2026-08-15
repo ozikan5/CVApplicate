@@ -195,13 +195,13 @@ Update this file whenever the facts change, before touching the CV.
 
 ---
 
-## Job Postings Fetcher
+# Job Postings Fetcher
 
 Pulls new job listings from companies' ATS APIs (Greenhouse, Lever) once a day and
 emails you a summary. See
 `docs/superpowers/specs/2026-08-14-job-postings-fetcher-design.md` for the full design.
 
-### Setup
+## Setup
 
 1. Install dependencies: `pip install -r requirements.txt`
 2. Copy `companies.example.yaml` to `companies.local.yaml` and fill in the companies
@@ -216,6 +216,10 @@ emails you a summary. See
      `~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
    - Replace every `/ABSOLUTE/PATH/TO/CVApplicate` placeholder in that copied file
      with this repo's actual absolute path (find it with `pwd`).
+   - **Important:** The plist hardcodes `/usr/bin/python3` (Apple's system Python). If you
+     installed dependencies with a different Python (Homebrew, pyenv, etc.), check `which python3`
+     — if it differs, update that path in the plist too. Otherwise the scheduled job will fail
+     silently with `ModuleNotFoundError` even though your manual test works.
    - Load it: `launchctl load ~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
    - It now runs daily at 8:00am; check `fetch-postings.log` in the repo for output.
    - To stop it: `launchctl unload ~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
