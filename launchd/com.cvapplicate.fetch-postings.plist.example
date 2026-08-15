@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.cvapplicate.fetch-postings</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>/ABSOLUTE/PATH/TO/CVApplicate/fetch-postings.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/ABSOLUTE/PATH/TO/CVApplicate</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>8</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/ABSOLUTE/PATH/TO/CVApplicate/fetch-postings.log</string>
+	<key>StandardErrorPath</key>
+	<string>/ABSOLUTE/PATH/TO/CVApplicate/fetch-postings.log</string>
+</dict>
+</plist>
