@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import urllib.request
 from datetime import datetime, timezone
 
@@ -9,6 +10,10 @@ def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
     postings = []
     for job in raw.get("jobs", []):
         if "id" not in job or "title" not in job or "absolute_url" not in job:
+            print(
+                f"warning: skipping malformed Greenhouse job (missing required fields): {job!r}",
+                file=sys.stderr,
+            )
             continue
         postings.append(
             {
@@ -16,7 +21,7 @@ def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
                 "company": company_name,
                 "title": job["title"],
                 "url": job["absolute_url"],
-                "location": job.get("location", {}).get("name", "Unknown"),
+                "location": (job.get("location") or {}).get("name", "Unknown"),
                 "posted_date": job.get("updated_at", "")[:10],
             }
         )
@@ -27,6 +32,10 @@ def normalize_lever(company_name: str, slug: str, raw: list) -> list[dict]:
     postings = []
     for job in raw:
         if "id" not in job or "text" not in job or "hostedUrl" not in job:
+            print(
+                f"warning: skipping malformed Lever job (missing required fields): {job!r}",
+                file=sys.stderr,
+            )
             continue
         created_at = job.get("createdAt")
         if created_at is not None:
@@ -39,7 +48,7 @@ def normalize_lever(company_name: str, slug: str, raw: list) -> list[dict]:
                 "company": company_name,
                 "title": job["text"],
                 "url": job["hostedUrl"],
-                "location": job.get("categories", {}).get("location", "Unknown"),
+                "location": (job.get("categories") or {}).get("location", "Unknown"),
                 "posted_date": posted_date,
             }
         )

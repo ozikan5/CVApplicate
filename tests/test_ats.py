@@ -68,6 +68,80 @@ def test_normalize_lever_skips_jobs_missing_required_fields():
     assert result == []
 
 
+def test_normalize_greenhouse_logs_warning_for_skipped_job(capsys):
+    raw = {"jobs": [{"id": 1, "title": "Incomplete"}]}  # missing absolute_url
+
+    ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "warning" in captured.err
+    assert "Greenhouse" in captured.err
+
+
+def test_normalize_lever_logs_warning_for_skipped_job(capsys):
+    raw = [{"id": "abc"}]  # missing text and hostedUrl
+
+    ats.normalize_lever("Example Corp", "examplecorp", raw)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "warning" in captured.err
+    assert "Lever" in captured.err
+
+
+def test_normalize_greenhouse_handles_explicit_null_location():
+    raw = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "Engineer",
+                "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1",
+                "location": None,
+                "updated_at": "2026-08-10T00:00:00-05:00",
+            }
+        ]
+    }
+
+    result = ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
+
+    assert result == [
+        {
+            "id": "examplecorp-1",
+            "company": "Example Corp",
+            "title": "Engineer",
+            "url": "https://boards.greenhouse.io/examplecorp/jobs/1",
+            "location": "Unknown",
+            "posted_date": "2026-08-10",
+        }
+    ]
+
+
+def test_normalize_lever_handles_explicit_null_categories():
+    raw = [
+        {
+            "id": "abc",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/examplecorp/abc",
+            "categories": None,
+            "createdAt": 1770681600000,
+        }
+    ]
+
+    result = ats.normalize_lever("Example Corp", "examplecorp", raw)
+
+    assert result == [
+        {
+            "id": "examplecorp-abc",
+            "company": "Example Corp",
+            "title": "Engineer",
+            "url": "https://jobs.lever.co/examplecorp/abc",
+            "location": "Unknown",
+            "posted_date": "2026-02-10",
+        }
+    ]
+
+
 def test_fetch_greenhouse_calls_correct_url_and_normalizes(monkeypatch):
     calls = {}
 
