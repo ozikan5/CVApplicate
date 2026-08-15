@@ -195,6 +195,37 @@ Update this file whenever the facts change, before touching the CV.
 
 ---
 
+## Job Postings Fetcher
+
+Pulls new job listings from companies' ATS APIs (Greenhouse, Lever) once a day and
+emails you a summary. See
+`docs/superpowers/specs/2026-08-14-job-postings-fetcher-design.md` for the full design.
+
+### Setup
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Copy `companies.example.yaml` to `companies.local.yaml` and fill in the companies
+   you want to track (see the comments in that file for how to find each company's
+   ATS slug).
+3. Copy `.env.example` to `.env` and fill in your SMTP credentials — for Gmail, use
+   an App Password (https://myaccount.google.com/apppasswords), not your normal
+   password.
+4. Run it once by hand to confirm it works: `python3 fetch-postings.py`
+5. To run it automatically every day:
+   - Copy `launchd/com.cvapplicate.fetch-postings.plist.example` to
+     `~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
+   - Replace every `/ABSOLUTE/PATH/TO/CVApplicate` placeholder in that copied file
+     with this repo's actual absolute path (find it with `pwd`).
+   - Load it: `launchctl load ~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
+   - It now runs daily at 8:00am; check `fetch-postings.log` in the repo for output.
+   - To stop it: `launchctl unload ~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
+
+`companies.local.yaml`, `postings.local.yaml`, and `.env` are all gitignored — your
+real target list, fetched postings, and credentials never get committed to this
+template repo.
+
+---
+
 # How it's organised
 
 `master-data.md` and `applications/log.yaml` are authoritative on `main` only. The skills
