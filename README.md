@@ -5,7 +5,7 @@ A template for turning "ask an AI to review my CV" into a repeatable, version-co
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into four Claude Code skills, backed by
+weak points, and submit — this packages that loop into five Claude Code skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -21,7 +21,7 @@ CVApplicate/
 ├── applications/log.yaml         History of applications, scores, and outcomes
 ├── check-cv-text.py              Mechanical repetition/filler detector
 ├── import-overleaf.sh            Import a CV from an Overleaf source zip
-├── .claude/skills/               The four skills below
+├── .claude/skills/               The five skills below
 └── docs/                         Design spec and implementation plan
 
 Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-science, ...)
@@ -196,7 +196,7 @@ interview.
 - **Do not claim:** "99% accurate" — end-to-end accuracy on the real task is much lower.
 ```
 
-`cv-review` and `cv-sanity-check` read this file before editing and treat it as binding —
+`cv-review`, `cv-sanity-check`, and `cv-application-skills` read this file before editing and treat it as binding —
 a guardrail beats a higher score. When a posting tempts them past what's true, they keep
 the honest wording and report the gap.
 
@@ -238,7 +238,7 @@ Same command pulls template updates through, after `git merge upstream/main` on 
 
 ## Status
 
-All four skills are implemented and validated end-to-end. See
+All five skills are implemented and validated end-to-end. See
 [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
 
