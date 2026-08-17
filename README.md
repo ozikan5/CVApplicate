@@ -35,6 +35,7 @@ Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-sci
 | **cv-new-industry** | Branches a new industry-specific CV variant off `main` |
 | **cv-log-outcome** | Records an application's outcome (interview, offer, rejection) |
 | **cv-sanity-check** | Finds and fixes writing that reads as AI-generated |
+| **cv-application-skills** | Ranks the top skill keywords for a job application's Skills field, from a JD |
 
 ---
 
@@ -162,6 +163,18 @@ git show <cv_commit>:cv.tex
 
 Over time this is the interesting artifact — which CV versions and scores actually
 correlated with interviews.
+
+## Filling in an application's "Skills" field
+
+```
+Run cv-application-skills for this JD: <paste or URL>
+```
+
+Many application portals ask for a separate list of skill keywords, independent of
+whatever CV you upload. This reads `master-data.md` and reports the 10 best-fitting
+ones for the posting, each with the specific experience it's grounded in, plus a gap
+note for anything the JD emphasizes that your experience doesn't support. Nothing
+gets written anywhere — copy the list into the application yourself.
 
 ---
 
