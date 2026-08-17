@@ -196,9 +196,10 @@ interview.
 - **Do not claim:** "99% accurate" — end-to-end accuracy on the real task is much lower.
 ```
 
-`cv-review`, `cv-sanity-check`, and `cv-application-skills` read this file before editing and treat it as binding —
-a guardrail beats a higher score. When a posting tempts them past what's true, they keep
-the honest wording and report the gap.
+`cv-review` and `cv-sanity-check` read this file before editing and treat it as binding;
+`cv-application-skills` reads it too, before recommending skills, since it never edits
+anything. All three treat it as binding — a guardrail beats a higher score. When a
+posting tempts them past what's true, they keep the honest wording and report the gap.
 
 Worth writing rules for: metrics whose real scope is narrower than they sound, work you
 contributed to rather than owned, anything not yet in production, team results, early A/B
