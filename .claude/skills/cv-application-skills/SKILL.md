@@ -21,8 +21,8 @@ editing, no scoring, no logging — just a tailored keyword list, read-only.
 1. **Job description** — pasted text, or a URL to fetch. If a URL is given, try
    fetching it first; if the fetch fails or returns unusable content, ask the user to
    paste the text instead.
-2. **Count** (optional) — defaults to 10. Only ask if the user specifies a different
-   number.
+2. **Count** (optional) — defaults to 10. If the user requests a different number, use
+   that instead; otherwise don't ask, just use 10.
 
 No industry/branch input is needed. This skill reads `master-data.md` directly,
 which holds the full experience bank across every branch, so whichever branch is
@@ -38,9 +38,12 @@ currently checked out doesn't matter and never gets switched.
 3. Cross-reference those terms — and general relevant competencies — against
    everything demonstrated in `master-data.md`, not just its dedicated Skills
    section. A skill evidenced only in an Experience or Project bullet still counts.
-4. Rank candidates and select the top N (10 by default). When a skill is genuinely
-   grounded, prefer phrasing it the way the JD itself phrases it — this is a
-   tie-breaker on wording, never a reason to stretch a claim past what step 5 allows.
+4. Rank candidates by how strongly each is grounded in `master-data.md` and how
+   prominently the JD emphasizes it — a skill with deep, specific evidence and heavy
+   JD emphasis ranks above one with thin evidence or a passing JD mention. Select the
+   top N (10 by default). When a skill is genuinely grounded, prefer phrasing it the
+   way the JD itself phrases it — this is a tie-breaker on wording, never a reason to
+   stretch a claim past what step 5 allows.
 5. Never include a skill not grounded in `master-data.md`, and never phrase one in a
    way `claims-guardrails.md` prohibits (e.g. don't suggest "Kubernetes" if the only
    grounding is "used Docker once" — that's not the same skill).
@@ -53,7 +56,9 @@ currently checked out doesn't matter and never gets switched.
 Report directly to the user, nothing written to any file:
 - The N skills, each with a one-line reason tying it to specific grounded experience.
 - A short **gaps** note: JD-emphasized skills excluded because there's no grounded
-  support for them, stated plainly.
+  support for them, stated plainly. If nothing is excluded, say so explicitly (e.g.
+  'no gaps — every JD-emphasized skill is grounded') rather than omitting the gaps
+  note.
 
 ## Error handling
 
