@@ -141,12 +141,15 @@ The skill will:
 4. Pick the worst 3 weaknesses across both scores
 5. Edit `cv.tex` to fix them, staying inside your guardrails
 6. Compile-check the LaTeX (reverts the edit if it breaks) and hand you the compiled
-   PDF to download — it's a build artifact, not tracked in git, so it's regenerated
-   each run rather than committed
+   PDF to download, named `First_Last_CV_Company.pdf` — it's a build artifact, not
+   tracked in git, so it's regenerated each run rather than committed
 7. Re-score and report before/after
 8. Log the application to `applications/log.yaml` on `main`
 
-`cv-new-industry` and `cv-sanity-check` deliver a PDF the same way at the end of their runs.
+`cv-new-industry` and `cv-sanity-check` deliver a PDF the same way at the end of their
+runs, named `First_Last_CV_Industry.pdf` and `First_Last_CV_Branch.pdf` respectively —
+whichever single word identifies the industry/branch, since neither has a company to
+name against.
 
 Score bands follow VMock's public methodology: 🔴 0–32 · 🟡 33–85 · 🟢 86–100. Aim for 85+;
 100 is not the goal.
