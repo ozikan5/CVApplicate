@@ -20,10 +20,11 @@ Detection runs in two passes: a mechanical one you must not skip, then your own 
 
 ### Pass 1 — mechanical (run the script)
 
-`check-cv-text.py` counts what is countable, so nothing slips past judgment alone:
+`check-cv-text.py` ships inside this plugin and counts what is countable, so nothing
+slips past judgment alone:
 
 ```bash
-python3 check-cv-text.py cv.tex
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex
 ```
 
 It reports, with line numbers:
@@ -56,7 +57,7 @@ correct. Judge each one — but never ignore the list wholesale.
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted.
 2. Read `cv.tex`, plus `claims-guardrails.md` and `master-data.md` if they exist.
-3. Run `python3 check-cv-text.py cv.tex` (Pass 1) and read every finding. Then do your
+3. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` (Pass 1) and read every finding. Then do your
    own Pass 2 reading for what the script cannot detect. Decide, per finding, whether
    it's a real problem or an unavoidable domain term — and say which in your report.
    Also flag any bullet that violates `claims-guardrails.md` — an overstated metric
@@ -78,7 +79,7 @@ correct. Judge each one — but never ignore the list wholesale.
     clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
     the working tree — it's a build artifact regenerated on demand, not tracked in
     git. Skip this if step 5 found no LaTeX toolchain.
-7. Re-run `python3 check-cv-text.py cv.tex` to confirm the findings you intended to fix
+7. Re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` to confirm the findings you intended to fix
    are gone and that your edits introduced no new ones.
 8. Report to the user exactly what was found and what was changed, bullet by bullet, so
    nothing is altered without them seeing why. Separate the findings you fixed from the
