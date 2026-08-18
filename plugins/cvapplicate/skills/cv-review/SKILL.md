@@ -62,10 +62,15 @@ Ask for anything missing before starting:
 9. Commit `cv.tex` on the industry branch (this file only — see step 7):
    `git add cv.tex && git commit -m "Review: <company> <role>"`
    Record the resulting commit SHA (`git rev-parse HEAD`) for step 12's `cv_commit`.
-9a. Deliver the compiled PDF from step 8 to the user as a downloadable file, then
-    clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
-    the working tree — it's a build artifact regenerated on demand, not tracked in
-    git. Skip this if step 8 found no LaTeX toolchain.
+9a. Rename the compiled PDF to `First_Last_CV_Company.pdf` before delivering it —
+    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
+    section), Company a single word/token identifying the employer (its own common
+    short name or acronym if it has one, e.g. `CTC` for Chicago Trading Company,
+    `Bain` for Bain & Company; otherwise the first distinctive word of the company
+    name — never the full multi-word name). Deliver that file to the user as a
+    downloadable file, then clean build artifacts (e.g. `latexmk -c`) and remove the
+    generated PDF from the working tree — it's a build artifact regenerated on
+    demand, not tracked in git. Skip this if step 8 found no LaTeX toolchain.
 10. Re-score both layers against the fixed `cv.tex` (repeat steps 4-6). This is the
     final check — report the before/after scores. Do not block on any threshold; the
     user decides if it's ready.
