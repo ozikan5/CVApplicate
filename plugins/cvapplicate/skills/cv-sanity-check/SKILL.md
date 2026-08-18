@@ -75,10 +75,15 @@ correct. Judge each one — but never ignore the list wholesale.
    - If found, compile `cv.tex`. On failure, run `git checkout -- cv.tex` to revert,
      report the compile error, and stop — do not commit.
 6. Commit: `git add cv.tex && git commit -m "Sanity check: fix AI-writing smells"`.
-6a. Deliver the compiled PDF from step 5 to the user as a downloadable file, then
-    clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
-    the working tree — it's a build artifact regenerated on demand, not tracked in
-    git. Skip this if step 5 found no LaTeX toolchain.
+6a. Rename the compiled PDF to `First_Last_CV_Branch.pdf` before delivering it —
+    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
+    section), Branch the current branch name from `git branch --show-current`
+    (capitalized as one word, e.g. `Swe`, `Consulting`; collapse a hyphenated name
+    like `quant-trading` to one word, e.g. `QuantTrading`). Deliver that file to the
+    user as a downloadable file, then clean build artifacts (e.g. `latexmk -c`) and
+    remove the generated PDF from the working tree — it's a build artifact
+    regenerated on demand, not tracked in git. Skip this if step 5 found no LaTeX
+    toolchain.
 7. Re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` to confirm the findings you intended to fix
    are gone and that your edits introduced no new ones.
 8. Report to the user exactly what was found and what was changed, bullet by bullet, so

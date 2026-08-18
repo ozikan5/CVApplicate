@@ -34,8 +34,13 @@ before proceeding.
    - If found, compile `cv.tex`. On failure, fix the LaTeX error before continuing —
      do not commit broken LaTeX.
 8. Commit: `git add cv.tex && git commit -m "Adapt CV for <industry>"`.
-9. Deliver the compiled PDF to the user as a downloadable file.
-10. Clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
+9. Rename the compiled PDF to `First_Last_CV_Industry.pdf` before delivering it —
+    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
+    section), Industry the single-word `<industry>` slug from this run (e.g.
+    `Consulting`, capitalized; if it's hyphenated like `quant-trading`, collapse it
+    to one word, e.g. `QuantTrading`). Deliver that file to the user as a
+    downloadable file.
+10. Clean build artifacts (e.g. `latexmk -c`) and remove the generated PDF from
     the working tree — it's a build artifact regenerated on demand, not tracked in git.
 11. Switch back to `main`: `git checkout main`.
 12. Report to the user: branch name, a short summary of what was emphasized or
