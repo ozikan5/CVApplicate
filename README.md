@@ -1,18 +1,18 @@
 # CVApplicate
 
-A Claude Code plugin that turns "ask an AI to review my CV" into a repeatable,
+A plugin that turns "ask an AI to review my CV" into a repeatable,
 version-controlled pipeline.
 
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into five Claude Code skills, backed by
+weak points, and submit — this packages that loop into five skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
 This one repo does two things at once:
 
-1. **It's a Claude Code plugin.** The skills and their helper script live under
+1. **It's an installable plugin.** The skills and their helper script live under
    `plugins/cvapplicate/` and install once, system-wide, via `/plugin install` — you
    never fork or edit this part.
 2. **It's a data template.** Everything else at the repo root (`cv.tex`,
@@ -54,7 +54,7 @@ CVApplicate/
 
 ## 1. Install the plugin
 
-In Claude Code:
+In your AI coding CLI:
 
 ```
 /plugin marketplace add https://github.com/ozikan5/CVApplicate
@@ -112,8 +112,8 @@ This is the step people skip, and it's the one that matters most — see
 
 ## 6. Create your industry branches
 
-Ask Claude to run `cv-new-industry` for each field you target. It branches off `main` and
-adapts `cv.tex` for that industry using your `master-data.md`.
+Run `cv-new-industry` for each field you target. It branches off `main` and adapts
+`cv.tex` for that industry using your `master-data.md`.
 
 ```
 Run cv-new-industry for "consulting"
@@ -247,7 +247,7 @@ reinstall) to pick up the latest version.
 
 ## Requirements
 
-- Claude Code, with the `cvapplicate` plugin installed (see Setup above)
+- An AI coding CLI with plugin support, with the `cvapplicate` plugin installed (see Setup above)
 - git
 - A LaTeX toolchain (`latexmk`, `pdflatex`, or `tectonic`) — optional. Without one the
   skills skip compile-checking and say so in their report.
@@ -256,7 +256,7 @@ reinstall) to pick up the latest version.
 ## Status
 
 All five skills are implemented and validated end-to-end as skills; the plugin/marketplace
-manifests follow Claude Code's documented plugin schema but haven't yet been exercised
+manifests follow the documented plugin schema but haven't yet been exercised
 through a live `/plugin install` by an end user — if that flow surfaces anything, please
 open an issue. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
