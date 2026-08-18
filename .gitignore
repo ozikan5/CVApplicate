@@ -16,6 +16,10 @@ id_rsa*
 credentials.json
 secrets.yaml
 
+# Python
+__pycache__/
+*.pyc
+
 # LaTeX build artifacts
 *.aux
 *.log
