@@ -16,32 +16,57 @@ working tree is clean).
 
 ## What to look for
 
-Read every bullet in `cv.tex` and flag:
-- **Buzzword overuse** — words like "spearheaded", "leveraged", "orchestrated",
-  "utilized" appearing more than once or twice across the whole document
-- **Repetitive sentence/verb openings** — multiple bullets starting with the same
-  word or grammatical construction
-- **Em-dash overuse** — more em dashes than a human resume would typically use
-- **Generic filler phrases** — "responsible for", "worked on", "helped with" without
-  a concrete outcome attached
-- **Unnatural cadence** — bullets that all have near-identical sentence structure
-  and length, reading as templated rather than varied
-- **Inconsistent tense** — mixing past and present tense for equivalent
-  (e.g. all-past-role) entries
-- **Vague or unverifiable claims** — impact statements with no metric, scope, or
-  concrete detail behind them
-- **Unnaturally uniform bullet lengths** — every bullet being suspiciously close to
-  the same character count
+Detection runs in two passes: a mechanical one you must not skip, then your own reading.
+
+### Pass 1 — mechanical (run the script)
+
+`check-cv-text.py` counts what is countable, so nothing slips past judgment alone:
+
+```bash
+python3 check-cv-text.py cv.tex
+```
+
+It reports, with line numbers:
+- **Buzzwords** — any occurrence of ~50 flagged terms ("spearheaded", "leveraged",
+  "cutting-edge", "robust", "delve", …)
+- **Filler phrases** — any occurrence of ~35 padding phrases ("responsible for",
+  "worked on", "a variety of", "successfully", "utilized", …)
+- **Repeated bullet openers** — any word opening more than one bullet
+- **Overused words** — any content word appearing in more than three bullets
+- **Dash-connector overuse** — any em dash (—) or double/triple-hyphen (--, ---) used
+  as a sentence connector, anywhere in the document. Numeric ranges ("2--3s") and the
+  date ranges in `\resumeSubheading` fields are not flagged — only the connective use
+- **Uniform bullet length** — length variation under 15%, which reads as templated
+- **Unquantified bullets** — bullets containing no figure at all
+
+Exit code is 0 when clean, 1 when it has findings. Findings are **signals, not
+verdicts**: a repeated domain term ("search", "pipeline") may be unavoidable and
+correct. Judge each one — but never ignore the list wholesale.
+
+### Pass 2 — your reading (the script cannot see these)
+
+- **Inconsistent tense** — past vs. present mixed across equivalent entries
+- **Unnatural cadence** — every bullet following the same grammatical skeleton even
+  when lengths differ
+- **Vague claims** — statements with a number attached that still say nothing concrete
+- **Guardrail violations** — anything conflicting with `claims-guardrails.md`
 
 ## Procedure
 
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted.
-2. Read `cv.tex` in full.
-3. Identify every instance of the patterns above, with the specific bullet/line
-   affected.
+2. Read `cv.tex`, plus `claims-guardrails.md` and `master-data.md` if they exist.
+3. Run `python3 check-cv-text.py cv.tex` (Pass 1) and read every finding. Then do your
+   own Pass 2 reading for what the script cannot detect. Decide, per finding, whether
+   it's a real problem or an unavoidable domain term — and say which in your report.
+   Also flag any bullet that violates `claims-guardrails.md` — an overstated metric
+   scope, an ownership verb stronger than the work supports, or something described as
+   live that isn't.
 4. Edit `cv.tex` to fix each one — vary word choice, add concrete specifics where a
    claim is vague, fix tense consistency, vary sentence structure.
+   **Fixing "vague" must never mean inflating.** Pull real specifics from
+   `master-data.md`; if none exist, leave the claim modest and say so in the report.
+   Never resolve vagueness by inventing a number.
 5. Compile-check the edit using whichever of these is found first on the system:
    `latexmk`, then `pdflatex`, then `tectonic`.
    - If none are found, skip this step and note in your final report that
@@ -49,11 +74,22 @@ Read every bullet in `cv.tex` and flag:
    - If found, compile `cv.tex`. On failure, run `git checkout -- cv.tex` to revert,
      report the compile error, and stop — do not commit.
 6. Commit: `git add cv.tex && git commit -m "Sanity check: fix AI-writing smells"`.
-7. Report to the user exactly what was found and what was changed, bullet by bullet,
-   so nothing is altered without them seeing why.
+6a. Deliver the compiled PDF from step 5 to the user as a downloadable file, then
+    clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
+    the working tree — it's a build artifact regenerated on demand, not tracked in
+    git. Skip this if step 5 found no LaTeX toolchain.
+7. Re-run `python3 check-cv-text.py cv.tex` to confirm the findings you intended to fix
+   are gone and that your edits introduced no new ones.
+8. Report to the user exactly what was found and what was changed, bullet by bullet, so
+   nothing is altered without them seeing why. Separate the findings you fixed from the
+   ones you judged acceptable, and say why for each of the latter. Confirm the PDF was
+   delivered (or why not, per step 6a).
 
 ## Error handling
 
 - Dirty working tree at step 1 → stop, do not edit.
+- `check-cv-text.py` missing or erroring → say so explicitly in the report, then do
+  Pass 2 by hand. Never silently skip Pass 1.
 - Compile failure at step 5 → revert, report, stop before committing.
-- Nothing found → report that the CV reads fine, make no changes, no commit.
+- Nothing found by either pass → report that the CV reads fine, make no changes, no
+  commit. If the user still wants a PDF, compile and deliver it without committing.
