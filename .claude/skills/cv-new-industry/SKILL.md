@@ -27,12 +27,24 @@ before proceeding.
    `master-data.md` to emphasize what's most relevant to that field. Keep the same
    LaTeX structure/formatting as the base template — only the content selection and
    ordering changes.
-7. Commit: `git add cv.tex && git commit -m "Adapt CV for <industry>"`.
-8. Switch back to `main`: `git checkout main`.
-9. Report to the user: branch name, and a short summary of what was emphasized or
-   reordered for this industry.
+7. Compile-check the edit using whichever of these is found first on the system:
+   `latexmk`, then `pdflatex`, then `tectonic` (check with e.g. `which latexmk`).
+   - If none are found, skip this step and steps 9-10 below, and note in the final
+     report that compilation was not verified, so no PDF was produced.
+   - If found, compile `cv.tex`. On failure, fix the LaTeX error before continuing —
+     do not commit broken LaTeX.
+8. Commit: `git add cv.tex && git commit -m "Adapt CV for <industry>"`.
+9. Deliver the compiled PDF to the user as a downloadable file.
+10. Clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
+    the working tree — it's a build artifact regenerated on demand, not tracked in git.
+11. Switch back to `main`: `git checkout main`.
+12. Report to the user: branch name, a short summary of what was emphasized or
+    reordered for this industry, and confirmation the PDF was delivered (or why not,
+    per step 7).
 
 ## Error handling
 
 - Dirty working tree at step 1 → stop, do not create the branch.
 - Branch already exists at step 3 → stop, tell the user, do not overwrite.
+- Compile failure at step 7 → fix the LaTeX before committing; if it can't be fixed,
+  report the error and stop rather than committing broken LaTeX.

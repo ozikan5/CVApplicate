@@ -62,6 +62,10 @@ Ask for anything missing before starting:
 9. Commit `cv.tex` on the industry branch (this file only — see step 7):
    `git add cv.tex && git commit -m "Review: <company> <role>"`
    Record the resulting commit SHA (`git rev-parse HEAD`) for step 12's `cv_commit`.
+9a. Deliver the compiled PDF from step 8 to the user as a downloadable file, then
+    clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
+    the working tree — it's a build artifact regenerated on demand, not tracked in
+    git. Skip this if step 8 found no LaTeX toolchain.
 10. Re-score both layers against the fixed `cv.tex` (repeat steps 4-6). This is the
     final check — report the before/after scores. Do not block on any threshold; the
     user decides if it's ready.
@@ -101,10 +105,11 @@ Ask for anything missing before starting:
     `git add applications/log.yaml master-data.md && git commit -m "Log application: <company> <role>"`
 14. Switch back to the industry branch: `git checkout <industry-branch>`.
 15. Report to the user: initial Base/JD Fit scores, the 3 weaknesses fixed and why,
-    the final re-scored numbers, and — separately — any JD requirement you could not
-    honestly satisfy from `master-data.md` within the guardrails. That gap list is
-    often the most useful part of the report: it tells the user what to actually go
-    build or document, rather than what to word differently.
+    the final re-scored numbers, confirmation the PDF was delivered (or why not, per
+    step 9a), and — separately — any JD requirement you could not honestly satisfy
+    from `master-data.md` within the guardrails. That gap list is often the most
+    useful part of the report: it tells the user what to actually go build or
+    document, rather than what to word differently.
 
 ## Error handling
 

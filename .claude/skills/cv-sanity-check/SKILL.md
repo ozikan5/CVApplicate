@@ -74,11 +74,16 @@ correct. Judge each one — but never ignore the list wholesale.
    - If found, compile `cv.tex`. On failure, run `git checkout -- cv.tex` to revert,
      report the compile error, and stop — do not commit.
 6. Commit: `git add cv.tex && git commit -m "Sanity check: fix AI-writing smells"`.
+6a. Deliver the compiled PDF from step 5 to the user as a downloadable file, then
+    clean build artifacts (e.g. `latexmk -c`) and remove the generated `cv.pdf` from
+    the working tree — it's a build artifact regenerated on demand, not tracked in
+    git. Skip this if step 5 found no LaTeX toolchain.
 7. Re-run `python3 check-cv-text.py cv.tex` to confirm the findings you intended to fix
    are gone and that your edits introduced no new ones.
 8. Report to the user exactly what was found and what was changed, bullet by bullet, so
    nothing is altered without them seeing why. Separate the findings you fixed from the
-   ones you judged acceptable, and say why for each of the latter.
+   ones you judged acceptable, and say why for each of the latter. Confirm the PDF was
+   delivered (or why not, per step 6a).
 
 ## Error handling
 
@@ -87,4 +92,4 @@ correct. Judge each one — but never ignore the list wholesale.
   Pass 2 by hand. Never silently skip Pass 1.
 - Compile failure at step 5 → revert, report, stop before committing.
 - Nothing found by either pass → report that the CV reads fine, make no changes, no
-  commit.
+  commit. If the user still wants a PDF, compile and deliver it without committing.
