@@ -1,0 +1,14 @@
+{
+  "name": "cvapplicate",
+  "owner": {
+    "name": "Ozan Kan",
+    "url": "https://github.com/ozikan5"
+  },
+  "plugins": [
+    {
+      "name": "cvapplicate",
+      "source": "./plugins/cvapplicate",
+      "description": "Five CV-editing skills: score/fix a CV against a job description, branch new industry variants, catch AI-writing smells, rank application-form skill keywords, and log outcomes."
+    }
+  ]
+}
