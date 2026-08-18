@@ -1,5 +1,9 @@
 {
   "name": "cvapplicate",
   "description": "Turns 'paste my CV and a JD into an AI' into a repeatable, git-backed pipeline: score a CV against a job description, fix the weakest points, catch AI-writing smells, rank application-form skill keywords, and log every application's outcome.",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "author": {
+    "name": "Ozan Kan",
+    "url": "https://github.com/ozikan5"
+  }
 }
