@@ -40,3 +40,6 @@ __pycache__/
 *.local.tex
 *.local.md
 *.local.yaml
+
+# Worktrees (scratch, session-managed)
+.claude/worktrees/
