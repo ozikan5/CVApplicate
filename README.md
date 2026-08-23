@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into five skills, backed by
+weak points, and submit — this packages that loop into six skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The five skills below
+│   └── skills/                       The six skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -47,6 +47,7 @@ CVApplicate/
 | **cv-log-outcome** | Records an application's outcome (interview, offer, rejection) |
 | **cv-sanity-check** | Finds and fixes writing that reads as AI-generated |
 | **cv-application-skills** | Ranks the top skill keywords for a job application's Skills field, from a JD |
+| **cv-add-coursework** | Verifies JD-named coursework against a transcript and enriches `master-data.md` with the official course description |
 
 ---
 
@@ -61,7 +62,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the five skills once, available in any directory. When this repo's skills
+This installs the six skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -125,6 +126,22 @@ Run cv-new-industry for "consulting"
 
 Skills trigger from plain-language requests like the ones below, or can be invoked
 explicitly as `/cvapplicate:cv-review`, `/cvapplicate:cv-sanity-check`, etc.
+
+## Verifying coursework against a transcript
+
+```
+Run cv-add-coursework with my transcript at <path>, for this JD: <paste or URL>
+```
+
+When a job description names specific coursework (e.g. "Operating Systems," "Linear
+Algebra," "Relational Databases") that your `master-data.md` doesn't yet reflect
+accurately, this cross-references the JD's asks against your actual transcript,
+looks up each course's official description, and enriches the `Coursework:` line
+with verified detail — never inventing a course, and never scoping a claim past
+what the official description actually supports. Anything ambiguous or
+unverifiable gets batched into one round of questions at the end, rather than
+guessed. Run `cv-review` afterward to pull the newly-verified coursework onto a
+specific branch's `cv.tex`.
 
 ## Reviewing your CV against a job posting
 
@@ -258,7 +275,7 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All five skills are implemented and validated end-to-end as skills; the plugin/marketplace
+All six skills are implemented and validated end-to-end as skills; the plugin/marketplace
 manifests follow the documented plugin schema but haven't yet been exercised
 through a live `/plugin install` by an end user — if that flow surfaces anything, please
 open an issue. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
