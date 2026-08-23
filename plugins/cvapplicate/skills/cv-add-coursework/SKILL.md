@@ -1,19 +1,20 @@
 ---
 name: cv-add-coursework
-description: Given a transcript and a job description, verify which JD-named coursework the user has actually taken, look up the official course description, and enrich master-data.md's Coursework line with grounded detail. Use when a job description names specific coursework (e.g. "Operating Systems," "Linear Algebra," "Relational Databases") that master-data.md doesn't yet reflect accurately.
+description: Given a transcript and a job description, verify which JD-named coursework the user has actually taken, look up the official course description, and enrich master-data.md's coursework line with grounded detail. Use when a job description names specific coursework (e.g. "Operating Systems," "Linear Algebra," "Relational Databases") that master-data.md doesn't yet reflect accurately.
 ---
 
 # CV Add Coursework
 
 Given a transcript and a job description, verifies which JD-named coursework the
 user has genuinely taken, looks up the official course description, and enriches
-`master-data.md`'s `Coursework:` line with grounded, verified detail.
+the coursework line in `master-data.md`'s Education section (labeled `Coursework:`
+or `Relevant coursework:` depending on the fork) with grounded, verified detail.
 
 ## When to use
 
 A job description names specific coursework as a qualification (e.g. "Relational
 Databases," "Linear Algebra & Numerical Methods," "Operating Systems
-memory/resource management") and `master-data.md`'s `Coursework:` line doesn't yet
+memory/resource management") and `master-data.md`'s coursework line doesn't yet
 reflect it accurately. This is separate from `cv-review`: it only ever touches
 `master-data.md` on `main`, never `cv.tex` — run `cv-review` afterward to pull the
 newly-enriched coursework onto a specific branch's CV.
@@ -27,8 +28,8 @@ newly-enriched coursework onto a specific branch's CV.
    to paste the text instead.
 
 No industry/branch input is needed. This skill only ever touches `master-data.md`
-on `main`, so whichever branch is currently checked out doesn't matter and never
-gets switched away from without switching back.
+on `main` — whichever branch is checked out when you start doesn't matter, since
+the run checks out `main` and ends there (the same as `cv-log-outcome`).
 
 ## Procedure
 
@@ -41,7 +42,7 @@ gets switched away from without switching back.
    the underlying concepts, not just literal course titles (e.g. "Distributed
    Systems" or "Linear Algebra & Numerical Methods" name topics a course might
    cover under an entirely different title).
-5. Read `master-data.md`'s current `Coursework:` line.
+5. Read `master-data.md`'s current coursework line.
 6. Match JD topics against transcript courses using judgment, not string-matching.
    - Skip any match already fully represented with topic detail in
      `master-data.md`.
@@ -60,10 +61,10 @@ gets switched away from without switching back.
 10. If step 9 produced any held-back cases, ask the user about all of them in a
     single batched message, and wait for a response before continuing. Never
     interrupt per-course.
-11. Edit `master-data.md`'s `Coursework:` line, extending it with parenthetical
-    topic detail for each newly-verified course, matching the file's existing
-    parenthetical style (e.g. `Discrete Math (Graph Theory, Combinatorics,
-    Bayesian Probability)`).
+11. Edit `master-data.md`'s coursework line, extending it with parenthetical
+    topic detail for each newly-verified course, in the same style as other
+    Education-section entries, e.g. `Discrete Math (Graph Theory, Combinatorics,
+    Bayesian Probability)`.
 12. Commit: `git add master-data.md && git commit -m "Add coursework detail for <Company> JD from transcript"`.
 13. Report to the user: which courses were added (with the verified detail and
     its source), which JD-named topics were already covered, which JD-named
