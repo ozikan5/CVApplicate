@@ -136,12 +136,13 @@ Run cv-add-coursework with my transcript at <path>, for this JD: <paste or URL>
 When a job description names specific coursework (e.g. "Operating Systems," "Linear
 Algebra," "Relational Databases") that your `master-data.md` doesn't yet reflect
 accurately, this cross-references the JD's asks against your actual transcript,
-looks up each course's official description, and enriches the `Coursework:` line
-with verified detail — never inventing a course, and never scoping a claim past
-what the official description actually supports. Anything ambiguous or
-unverifiable gets batched into one round of questions at the end, rather than
-guessed. Run `cv-review` afterward to pull the newly-verified coursework onto a
-specific branch's `cv.tex`.
+looks up each course's official description, and enriches the coursework line in
+`master-data.md`'s Education section (labeled `Coursework:` or `Relevant
+coursework:` depending on the fork) with verified detail — never inventing a
+course, and never scoping a claim past what the official description actually
+supports. Anything ambiguous or unverifiable gets batched into one round of
+questions at the end, rather than guessed. Run `cv-review` afterward to pull the
+newly-verified coursework onto a specific branch's `cv.tex`.
 
 ## Reviewing your CV against a job posting
 
