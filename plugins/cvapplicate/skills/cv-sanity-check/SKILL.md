@@ -20,10 +20,11 @@ Detection runs in two passes: a mechanical one you must not skip, then your own 
 
 ### Pass 1 — mechanical (run the script)
 
-`check-cv-text.py` counts what is countable, so nothing slips past judgment alone:
+`check-cv-text.py` ships inside this plugin and counts what is countable, so nothing
+slips past judgment alone:
 
 ```bash
-python3 check-cv-text.py cv.tex
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex
 ```
 
 It reports, with line numbers:
@@ -33,7 +34,9 @@ It reports, with line numbers:
   "worked on", "a variety of", "successfully", "utilized", …)
 - **Repeated bullet openers** — any word opening more than one bullet
 - **Overused words** — any content word appearing in more than three bullets
-- **Em-dash overuse** — more than three across the document
+- **Dash-connector overuse** — any em dash (—) or double/triple-hyphen (--, ---) used
+  as a sentence connector, anywhere in the document. Numeric ranges ("2--3s") and the
+  date ranges in `\resumeSubheading` fields are not flagged — only the connective use
 - **Uniform bullet length** — length variation under 15%, which reads as templated
 - **Unquantified bullets** — bullets containing no figure at all
 
@@ -54,7 +57,7 @@ correct. Judge each one — but never ignore the list wholesale.
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted.
 2. Read `cv.tex`, plus `claims-guardrails.md` and `master-data.md` if they exist.
-3. Run `python3 check-cv-text.py cv.tex` (Pass 1) and read every finding. Then do your
+3. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` (Pass 1) and read every finding. Then do your
    own Pass 2 reading for what the script cannot detect. Decide, per finding, whether
    it's a real problem or an unavoidable domain term — and say which in your report.
    Also flag any bullet that violates `claims-guardrails.md` — an overstated metric
@@ -72,11 +75,21 @@ correct. Judge each one — but never ignore the list wholesale.
    - If found, compile `cv.tex`. On failure, run `git checkout -- cv.tex` to revert,
      report the compile error, and stop — do not commit.
 6. Commit: `git add cv.tex && git commit -m "Sanity check: fix AI-writing smells"`.
-7. Re-run `python3 check-cv-text.py cv.tex` to confirm the findings you intended to fix
+6a. Rename the compiled PDF to `First_Last_CV_Branch.pdf` before delivering it —
+    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
+    section), Branch the current branch name from `git branch --show-current`
+    (capitalized as one word, e.g. `Swe`, `Consulting`; collapse a hyphenated name
+    like `quant-trading` to one word, e.g. `QuantTrading`). Deliver that file to the
+    user as a downloadable file, then clean build artifacts (e.g. `latexmk -c`) and
+    remove the generated PDF from the working tree — it's a build artifact
+    regenerated on demand, not tracked in git. Skip this if step 5 found no LaTeX
+    toolchain.
+7. Re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` to confirm the findings you intended to fix
    are gone and that your edits introduced no new ones.
 8. Report to the user exactly what was found and what was changed, bullet by bullet, so
    nothing is altered without them seeing why. Separate the findings you fixed from the
-   ones you judged acceptable, and say why for each of the latter.
+   ones you judged acceptable, and say why for each of the latter. Confirm the PDF was
+   delivered (or why not, per step 6a).
 
 ## Error handling
 
@@ -85,4 +98,4 @@ correct. Judge each one — but never ignore the list wholesale.
   Pass 2 by hand. Never silently skip Pass 1.
 - Compile failure at step 5 → revert, report, stop before committing.
 - Nothing found by either pass → report that the CV reads fine, make no changes, no
-  commit.
+  commit. If the user still wants a PDF, compile and deliver it without committing.

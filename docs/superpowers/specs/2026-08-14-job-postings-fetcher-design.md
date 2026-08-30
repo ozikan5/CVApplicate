@@ -73,7 +73,9 @@ deleted — historical record, not a live mirror.
 
 ### 4. Persistence
 Merges new postings into `postings.local.yaml`, preserving `first_seen` date on postings
-that already existed. Writes the file back after every run, successful or partial.
+that already existed. Each stored posting carries a `notified: bool` flag, set `true`
+only after a successful email covering it. Writes the file back after every run,
+successful or partial.
 
 ### 5. Notifier
 If there are new postings, sends one summary email (company, title, location, link — one
