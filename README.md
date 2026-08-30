@@ -1,30 +1,41 @@
 # CVApplicate
 
-A template for turning "ask an AI to review my CV" into a repeatable, version-controlled pipeline.
+A plugin that turns "ask an AI to review my CV" into a repeatable,
+version-controlled pipeline.
 
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into four Claude Code skills, backed by
+weak points, and submit — this packages that loop into six skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
-This repo ships with placeholder content only. Fork it and fill in your own.
+This one repo does two things at once:
+
+1. **It's an installable plugin.** The skills and their helper script live under
+   `plugins/cvapplicate/` and install once, system-wide, via `/plugin install` — you
+   never fork or edit this part.
+2. **It's a data template.** Everything else at the repo root (`cv.tex`,
+   `master-data.md`, `claims-guardrails.example.md`, `applications/log.yaml`,
+   `import-overleaf.sh`) is placeholder content for the private repo that holds *your*
+   CV. You copy that part out; you don't work inside this repo.
 
 ## Structure
 
 ```
 CVApplicate/
-├── cv.tex                        Placeholder LaTeX CV
-├── master-data.md                Your experience/education/skills bank
-├── claims-guardrails.example.md  Template for your claim limits (copy to claims-guardrails.md)
-├── applications/log.yaml         History of applications, scores, and outcomes
-├── check-cv-text.py              Mechanical repetition/filler detector
-├── import-overleaf.sh            Import a CV from an Overleaf source zip
-├── .claude/skills/               The four skills below
+├── .claude-plugin/marketplace.json   Marketplace listing (points at the plugin below)
+├── plugins/cvapplicate/
+│   ├── .claude-plugin/plugin.json    Plugin manifest
+│   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
+│   └── skills/                       The six skills below
+│
+├── cv.tex                        Placeholder LaTeX CV        ┐
+├── master-data.md                Your experience/skills bank │  copy these into
+├── claims-guardrails.example.md  Template for your claim limits │  your own private
+├── applications/log.yaml         History of applications/outcomes │  data repo
+├── import-overleaf.sh            Import a CV from an Overleaf zip ┘
 └── docs/                         Design spec and implementation plan
-
-Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-science, ...)
 ```
 
 ## Skills
@@ -35,27 +46,40 @@ Branches: main (base CV) + one per industry (swe, ai-ml, quant-trading, data-sci
 | **cv-new-industry** | Branches a new industry-specific CV variant off `main` |
 | **cv-log-outcome** | Records an application's outcome (interview, offer, rejection) |
 | **cv-sanity-check** | Finds and fixes writing that reads as AI-generated |
+| **cv-application-skills** | Ranks the top skill keywords for a job application's Skills field, from a JD |
+| **cv-add-coursework** | Verifies JD-named coursework against a transcript and enriches `master-data.md` with the official course description |
 
 ---
 
 # Setup
 
-## 1. Fork and clone
+## 1. Install the plugin
 
-Create your own repository — **private**, since it will hold your real CV, contact
-details, and application history. Then:
+In your AI coding CLI:
+
+```
+/plugin marketplace add https://github.com/ozikan5/CVApplicate
+/plugin install cvapplicate@cvapplicate
+```
+
+This installs the six skills once, available in any directory. When this repo's skills
+get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
+aren't automatic.
+
+## 2. Create your own data repo
+
+Use GitHub's **"Use this template"** on this repo (or fork it) to create your own
+repository — **private**, since it will hold your real CV, contact details, and
+application history. Then delete `plugins/` and `.claude-plugin/` from your copy — those
+two only exist to distribute the plugin and aren't needed once it's installed:
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git my-cv && cd my-cv
+rm -rf plugins .claude-plugin
+git add -A && git commit -m "Drop plugin distribution files from data repo"
 ```
 
-To keep pulling improvements from this template later, add it as a second remote:
-
-```bash
-git remote add upstream https://github.com/ozikan5/CVApplicate.git
-```
-
-## 2. Add your CV
+## 3. Add your CV
 
 If your CV lives in Overleaf, download it (**Menu → Download → Source**) and import:
 
@@ -71,14 +95,14 @@ The script finds the main `.tex` in the zip, copies it to `cv.tex`, and carries 
 > edit here. On a paid plan you can instead add your Overleaf project as a git remote and
 > push/pull directly.
 
-## 3. Fill in your experience bank
+## 4. Fill in your experience bank
 
 `master-data.md` is your source of truth — deliberately **larger** than one page. Put
 everything in it: bullets that didn't make the cut, extra detail on each project, metrics
 you haven't used yet. When a job description asks for something, the review skill draws
 from here rather than inventing it.
 
-## 4. Write your guardrails
+## 5. Write your guardrails
 
 ```bash
 cp claims-guardrails.example.md claims-guardrails.md
@@ -87,10 +111,10 @@ cp claims-guardrails.example.md claims-guardrails.md
 This is the step people skip, and it's the one that matters most — see
 [Guardrails](#guardrails) below.
 
-## 5. Create your industry branches
+## 6. Create your industry branches
 
-Ask Claude to run `cv-new-industry` for each field you target. It branches off `main` and
-adapts `cv.tex` for that industry using your `master-data.md`.
+Run `cv-new-industry` for each field you target. It branches off `main` and adapts
+`cv.tex` for that industry using your `master-data.md`.
 
 ```
 Run cv-new-industry for "consulting"
@@ -99,6 +123,26 @@ Run cv-new-industry for "consulting"
 ---
 
 # Daily use
+
+Skills trigger from plain-language requests like the ones below, or can be invoked
+explicitly as `/cvapplicate:cv-review`, `/cvapplicate:cv-sanity-check`, etc.
+
+## Verifying coursework against a transcript
+
+```
+Run cv-add-coursework with my transcript at <path>, for this JD: <paste or URL>
+```
+
+When a job description names specific coursework (e.g. "Operating Systems," "Linear
+Algebra," "Relational Databases") that your `master-data.md` doesn't yet reflect
+accurately, this cross-references the JD's asks against your actual transcript,
+looks up each course's official description, and enriches the coursework line in
+`master-data.md`'s Education section (labeled `Coursework:` or `Relevant
+coursework:` depending on the fork) with verified detail — never inventing a
+course, and never scoping a claim past what the official description actually
+supports. Anything ambiguous or unverifiable gets batched into one round of
+questions at the end, rather than guessed. Run `cv-review` afterward to pull the
+newly-verified coursework onto a specific branch's `cv.tex`.
 
 ## Reviewing your CV against a job posting
 
@@ -114,9 +158,16 @@ The skill will:
 3. Score **JD Fit** /100 — keyword match 40%, experience relevance 40%, seniority 20%
 4. Pick the worst 3 weaknesses across both scores
 5. Edit `cv.tex` to fix them, staying inside your guardrails
-6. Compile-check the LaTeX (reverts the edit if it breaks)
+6. Compile-check the LaTeX (reverts the edit if it breaks) and hand you the compiled
+   PDF to download, named `First_Last_CV_Company.pdf` — it's a build artifact, not
+   tracked in git, so it's regenerated each run rather than committed
 7. Re-score and report before/after
 8. Log the application to `applications/log.yaml` on `main`
+
+`cv-new-industry` and `cv-sanity-check` deliver a PDF the same way at the end of their
+runs, named `First_Last_CV_Industry.pdf` and `First_Last_CV_Branch.pdf` respectively —
+whichever single word identifies the industry/branch, since neither has a company to
+name against.
 
 Score bands follow VMock's public methodology: 🔴 0–32 · 🟡 33–85 · 🟢 86–100. Aim for 85+;
 100 is not the goal.
@@ -131,16 +182,11 @@ go build or document.
 Run cv-sanity-check
 ```
 
-Two passes. First `check-cv-text.py` counts what's countable — buzzwords, filler phrases,
-repeated bullet openers, overused words, em dashes, uniform bullet lengths, unquantified
-bullets — all with line numbers. Then the model reads for what a script can't see: tense
-consistency, cadence, vague-but-numbered claims.
-
-You can run the detector yourself any time:
-
-```bash
-python3 check-cv-text.py cv.tex
-```
+Two passes. First `check-cv-text.py` (bundled inside the plugin) counts what's countable —
+buzzwords, filler phrases, repeated bullet openers, overused words, dash-connectors (em
+dashes and double/triple hyphens used mid-sentence, not numeric or date ranges), uniform
+bullet lengths, unquantified bullets — all with line numbers. Then the model reads for
+what a script can't see: tense consistency, cadence, vague-but-numbered claims.
 
 Findings are signals, not verdicts. A domain term repeating across bullets ("search",
 "pipeline") is often unavoidable; the skill tells you which findings it fixed and which it
@@ -162,6 +208,18 @@ git show <cv_commit>:cv.tex
 Over time this is the interesting artifact — which CV versions and scores actually
 correlated with interviews.
 
+## Filling in an application's "Skills" field
+
+```
+Run cv-application-skills for this JD: <paste or URL>
+```
+
+Many application portals ask for a separate list of skill keywords, independent of
+whatever CV you upload. This reads `master-data.md` and reports the 10 best-fitting
+ones for the posting, each with the specific experience it's grounded in, plus a gap
+note for anything the JD emphasizes that your experience doesn't support. Nothing
+gets written anywhere — copy the list into the application yourself.
+
 ---
 
 # Guardrails
@@ -182,9 +240,10 @@ interview.
 - **Do not claim:** "99% accurate" — end-to-end accuracy on the real task is much lower.
 ```
 
-`cv-review` and `cv-sanity-check` read this file before editing and treat it as binding —
-a guardrail beats a higher score. When a posting tempts them past what's true, they keep
-the honest wording and report the gap.
+`cv-review` and `cv-sanity-check` read this file before editing and treat it as binding;
+`cv-application-skills` reads it too, before recommending skills, since it never edits
+anything. All three treat it as binding — a guardrail beats a higher score. When a
+posting tempts them past what's true, they keep the honest wording and report the gap.
 
 Worth writing rules for: metrics whose real scope is narrower than they sound, work you
 contributed to rather than owned, anything not yet in production, team results, early A/B
@@ -232,35 +291,30 @@ template repo.
 
 # How it's organised
 
-`master-data.md` and `applications/log.yaml` are authoritative on `main` only. The skills
-commit changes to them there and then return to your industry branch, so your experience
-bank and application history stay unified however many branches you have. Only `cv.tex`
-diverges per branch.
+`master-data.md` and `applications/log.yaml` are authoritative on `main` only, in *your*
+data repo. The skills commit changes to them there and then return to your industry
+branch, so your experience bank and application history stay unified however many
+branches you have. Only `cv.tex` diverges per branch.
 
-The skills live in the repo, so they're branched too. After editing a skill on `main`,
-merge `main` into your industry branches:
-
-```bash
-for b in swe ai-ml quant-trading data-science; do
-  git checkout $b && git merge main -m "Merge main: sync skills"
-done
-git checkout main
-```
-
-Same command pulls template updates through, after `git merge upstream/main` on `main`.
+The skills themselves no longer live in your data repo — they're installed once as the
+`cvapplicate` plugin and shared across every branch and every repo automatically. There's
+nothing to sync when a skill is updated upstream; run `/plugin update cvapplicate` (or
+reinstall) to pick up the latest version.
 
 ## Requirements
 
-- Claude Code
+- An AI coding CLI with plugin support, with the `cvapplicate` plugin installed (see Setup above)
 - git
 - A LaTeX toolchain (`latexmk`, `pdflatex`, or `tectonic`) — optional. Without one the
   skills skip compile-checking and say so in their report.
-- Python 3 for `check-cv-text.py`
+- Python 3 for `check-cv-text.py` (bundled in the plugin — nothing to install separately)
 
 ## Status
 
-All four skills are implemented and validated end-to-end. See
-[`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
+All six skills are implemented and validated end-to-end as skills; the plugin/marketplace
+manifests follow the documented plugin schema but haven't yet been exercised
+through a live `/plugin install` by an end user — if that flow surfaces anything, please
+open an issue. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
 
 ## License
