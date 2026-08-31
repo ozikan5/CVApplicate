@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import re
 
 import yaml
+
+_INTERN_RE = re.compile(r"\bintern(s|ship)?\b", re.IGNORECASE)
 
 
 def load_filters(path: str) -> dict | None:
@@ -20,7 +23,7 @@ def matches_filters(posting: dict, filters: dict) -> bool:
     if location_keywords and not any(k in location for k in location_keywords):
         return False
 
-    if filters.get("require_internship") and "intern" not in title:
+    if filters.get("require_internship") and not _INTERN_RE.search(title):
         return False
 
     title_keywords = [k.lower() for k in filters.get("title_keywords") or []]

@@ -35,6 +35,16 @@ def test_matches_filters_false_when_title_lacks_intern_and_required():
     assert filters.matches_filters(posting, f) is False
 
 
+def test_matches_filters_false_for_intern_as_substring_of_another_word():
+    f = {
+        "location_keywords": ["united states"],
+        "title_keywords": ["software engineer"],
+        "require_internship": True,
+    }
+    posting = _posting(title="Senior Software Engineer - Database Engine Internals")
+    assert filters.matches_filters(posting, f) is False
+
+
 def test_matches_filters_true_when_internship_not_required():
     f = {
         "location_keywords": ["united states"],
