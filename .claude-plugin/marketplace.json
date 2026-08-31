@@ -8,7 +8,7 @@
     {
       "name": "cvapplicate",
       "source": "./plugins/cvapplicate",
-      "description": "Six CV-editing skills: score/fix a CV against a job description, branch new industry variants, catch AI-writing smells, rank application-form skill keywords, verify and enrich coursework from a transcript, and log outcomes."
+      "description": "Seven CV-editing skills: score/fix a CV against a job description, branch new industry variants, catch AI-writing smells, rank application-form skill keywords, verify and enrich coursework from a transcript, score fetched postings against every industry branch overnight, and log outcomes."
     }
   ]
 }

@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into six skills, backed by
+weak points, and submit — this packages that loop into seven skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The six skills below
+│   └── skills/                       The seven skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -48,6 +48,7 @@ CVApplicate/
 | **cv-sanity-check** | Finds and fixes writing that reads as AI-generated |
 | **cv-application-skills** | Ranks the top skill keywords for a job application's Skills field, from a JD |
 | **cv-add-coursework** | Verifies JD-named coursework against a transcript and enriches `master-data.md` with the official course description |
+| **cv-score-postings** | Scores fetched job postings against every industry branch's CV data — read-only, no edits; normally run nightly, unattended |
 
 ---
 
@@ -62,7 +63,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the six skills once, available in any directory. When this repo's skills
+This installs the seven skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -289,6 +290,44 @@ template repo.
 
 ---
 
+# Job Postings Scoring
+
+Phase 2 of the pipeline: scores every fetched posting against each industry branch's CV
+data overnight, using the same JD Fit rubric `cv-review` applies interactively. See
+`docs/superpowers/specs/2026-08-31-job-postings-scoring-design.md` for the full design.
+
+This is scoring only — it never edits `cv.tex` or `master-data.md`, never commits, and
+never checks out a branch (branch content is read via `git show`, leaving your working
+tree untouched). It writes results to a local file for you to read when you choose;
+nothing gets emailed or submitted automatically. Strong matches still go through
+`cv-review` by hand before you apply.
+
+## Setup
+
+1. Make sure `fetch-postings.py` is already set up and running (see above) — scoring
+   has nothing to score without it.
+2. Run it once by hand to confirm it works: `./score-postings.sh` (requires the `claude`
+   CLI on PATH).
+3. To run it automatically every day, thirty minutes after the fetch job so it has
+   fresh postings to work from:
+   - Copy `launchd/com.cvapplicate.score-postings.plist.example` to
+     `~/Library/LaunchAgents/com.cvapplicate.score-postings.plist`
+   - Replace every `/ABSOLUTE/PATH/TO/CVApplicate` placeholder with this repo's actual
+     absolute path (find it with `pwd`).
+   - **Important:** if `which claude` differs between your interactive shell and a
+     bare launchd environment, `score-postings.sh` will fail silently with "command not
+     found" — the same class of PATH mismatch documented above for `fetch-postings.py`'s
+     `python3`.
+   - Load it: `launchctl load ~/Library/LaunchAgents/com.cvapplicate.score-postings.plist`
+   - It now runs daily at 8:30am; check `score-postings.log` in the repo for output.
+   - To stop it: `launchctl unload ~/Library/LaunchAgents/com.cvapplicate.score-postings.plist`
+
+Results land in `matches.local.yaml` — gitignored, like `postings.local.yaml`. Each
+scored posting carries a `best_branch`, a `jd_fit_score`, and a one-line rationale; read
+it whenever you want to see what's worth applying to.
+
+---
+
 # How it's organised
 
 `master-data.md` and `applications/log.yaml` are authoritative on `main` only, in *your*
@@ -311,10 +350,13 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All six skills are implemented and validated end-to-end as skills; the plugin/marketplace
-manifests follow the documented plugin schema but haven't yet been exercised
-through a live `/plugin install` by an end user — if that flow surfaces anything, please
-open an issue. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
+All seven skills are implemented; six are validated end-to-end as skills.
+`cv-score-postings` is implemented and unit-tested at the code layer (JD description
+capture, the `scored` flag) but hasn't yet been exercised through a live nightly
+`score-postings.sh` run against real postings and real branches — if that surfaces
+anything, please open an issue. The plugin/marketplace manifests follow the documented
+plugin schema but haven't yet been exercised through a live `/plugin install` by an end
+user either. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
 
 ## License
