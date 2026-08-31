@@ -23,6 +23,7 @@ def test_normalize_greenhouse_produces_expected_shape():
             "url": "https://boards.greenhouse.io/examplecorp/jobs/4567890",
             "location": "Remote",
             "posted_date": "2026-08-10",
+            "description": "Join our backend team. Python SQL",
         },
         {
             "id": "examplecorp-4567891",
@@ -31,6 +32,7 @@ def test_normalize_greenhouse_produces_expected_shape():
             "url": "https://boards.greenhouse.io/examplecorp/jobs/4567891",
             "location": "Chicago, IL",
             "posted_date": "2026-08-11",
+            "description": "Analyze large datasets.",
         },
     ]
 
@@ -56,6 +58,7 @@ def test_normalize_lever_produces_expected_shape():
             "url": "https://jobs.lever.co/examplecorp/a1b2c3d4-0000-1111-2222-333344445555",
             "location": "New York, NY",
             "posted_date": "2026-08-10",
+            "description": "Build and scale our backend services in Go.",
         }
     ]
 
@@ -113,6 +116,7 @@ def test_normalize_greenhouse_handles_explicit_null_location():
             "url": "https://boards.greenhouse.io/examplecorp/jobs/1",
             "location": "Unknown",
             "posted_date": "2026-08-10",
+            "description": None,
         }
     ]
 
@@ -138,8 +142,53 @@ def test_normalize_lever_handles_explicit_null_categories():
             "url": "https://jobs.lever.co/examplecorp/abc",
             "location": "Unknown",
             "posted_date": "2026-02-10",
+            "description": None,
         }
     ]
+
+
+def test_normalize_lever_falls_back_to_stripped_html_description():
+    raw = [
+        {
+            "id": "abc",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/examplecorp/abc",
+            "description": "<p>Ship <b>reliable</b> systems.</p>",
+        }
+    ]
+
+    result = ats.normalize_lever("Example Corp", "examplecorp", raw)
+
+    assert result[0]["description"] == "Ship reliable systems."
+
+
+def test_normalize_lever_sets_description_none_when_neither_field_present():
+    raw = [
+        {
+            "id": "abc",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/examplecorp/abc",
+        }
+    ]
+
+    result = ats.normalize_lever("Example Corp", "examplecorp", raw)
+
+    assert result[0]["description"] is None
+
+
+def test_normalize_lever_truncates_long_description():
+    raw = [
+        {
+            "id": "abc",
+            "text": "Engineer",
+            "hostedUrl": "https://jobs.lever.co/examplecorp/abc",
+            "descriptionPlain": "A" * 7000,
+        }
+    ]
+
+    result = ats.normalize_lever("Example Corp", "examplecorp", raw)
+
+    assert len(result[0]["description"]) == 6000
 
 
 def test_fetch_greenhouse_calls_correct_url_and_normalizes(monkeypatch):
@@ -163,7 +212,7 @@ def test_fetch_greenhouse_calls_correct_url_and_normalizes(monkeypatch):
 
     result = ats.fetch_greenhouse("Acme", "acme")
 
-    assert calls["url"] == "https://boards-api.greenhouse.io/v1/boards/acme/jobs"
+    assert calls["url"] == "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true"
     assert result == [
         {
             "id": "acme-1",
@@ -172,6 +221,7 @@ def test_fetch_greenhouse_calls_correct_url_and_normalizes(monkeypatch):
             "url": "https://boards.greenhouse.io/acme/jobs/1",
             "location": "Remote",
             "posted_date": "2026-08-10",
+            "description": None,
         }
     ]
 
@@ -205,3 +255,45 @@ def test_fetch_postings_for_company_dispatches_by_ats(monkeypatch):
 def test_fetch_postings_for_company_rejects_unknown_ats():
     with pytest.raises(ValueError):
         ats.fetch_postings_for_company({"name": "Acme", "slug": "acme", "ats": "workday"})
+
+
+def test_normalize_greenhouse_sets_description_none_for_empty_content():
+    raw = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "Engineer",
+                "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1",
+                "content": "   ",
+            }
+        ]
+    }
+
+    result = ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
+
+    assert result[0]["description"] is None
+
+
+def test_normalize_greenhouse_truncates_long_description():
+    raw = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "Engineer",
+                "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/1",
+                "content": "A" * 7000,
+            }
+        ]
+    }
+
+    result = ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
+
+    assert len(result[0]["description"]) == 6000
+
+
+def test_strip_html_removes_tags_and_collapses_whitespace():
+    html = "<p>Hello <b>world</b>.</p>\n<ul><li>Python</li>\n<li>SQL</li></ul>"
+
+    result = ats._strip_html(html)
+
+    assert result == "Hello world. Python SQL"

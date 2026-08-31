@@ -4,6 +4,7 @@
     "text": "Backend Engineer",
     "categories": {"location": "New York, NY", "team": "Engineering"},
     "hostedUrl": "https://jobs.lever.co/examplecorp/a1b2c3d4-0000-1111-2222-333344445555",
-    "createdAt": 1786320000000
+    "createdAt": 1786320000000,
+    "descriptionPlain": "Build and scale our backend services in Go."
   }
 ]

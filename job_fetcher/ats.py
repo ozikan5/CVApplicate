@@ -4,6 +4,57 @@ import json
 import sys
 import urllib.request
 from datetime import datetime, timezone
+from html.parser import HTMLParser
+
+
+_BLOCK_TAGS = {"p", "li", "ul", "ol", "div", "br", "tr", "td", "h1", "h2", "h3", "h4", "h5", "h6"}
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self._chunks: list[str] = []
+
+    def handle_data(self, data):
+        self._chunks.append(data)
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _BLOCK_TAGS:
+            self._chunks.append(" ")
+
+    def handle_endtag(self, tag):
+        if tag in _BLOCK_TAGS:
+            self._chunks.append(" ")
+
+    def text(self) -> str:
+        return " ".join("".join(self._chunks).split())
+
+
+def _strip_html(html_text: str) -> str:
+    parser = _HTMLTextExtractor()
+    parser.feed(html_text)
+    return parser.text()
+
+
+MAX_DESCRIPTION_LENGTH = 6000
+
+
+def _description_from_html(html_text: str | None) -> str | None:
+    if not html_text:
+        return None
+    stripped = _strip_html(html_text)
+    if not stripped:
+        return None
+    return stripped[:MAX_DESCRIPTION_LENGTH]
+
+
+def _description_from_plain(plain_text: str | None) -> str | None:
+    if not plain_text:
+        return None
+    collapsed = " ".join(plain_text.split())
+    if not collapsed:
+        return None
+    return collapsed[:MAX_DESCRIPTION_LENGTH]
 
 
 def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
@@ -23,6 +74,7 @@ def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
                 "url": job["absolute_url"],
                 "location": (job.get("location") or {}).get("name", "Unknown"),
                 "posted_date": job.get("updated_at", "")[:10],
+                "description": _description_from_html(job.get("content")),
             }
         )
     return postings
@@ -50,6 +102,8 @@ def normalize_lever(company_name: str, slug: str, raw: list) -> list[dict]:
                 "url": job["hostedUrl"],
                 "location": (job.get("categories") or {}).get("location", "Unknown"),
                 "posted_date": posted_date,
+                "description": _description_from_plain(job.get("descriptionPlain"))
+                or _description_from_html(job.get("description")),
             }
         )
     return postings
@@ -65,7 +119,7 @@ def _fetch_json(url: str):
 
 
 def fetch_greenhouse(company_name: str, slug: str) -> list[dict]:
-    raw = _fetch_json(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs")
+    raw = _fetch_json(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true")
     return normalize_greenhouse(company_name, slug, raw)
 
 

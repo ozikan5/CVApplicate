@@ -34,6 +34,7 @@ def merge_new_postings(
         posting = dict(posting)
         posting["first_seen"] = today
         posting["notified"] = False
+        posting["scored"] = False
         merged.append(posting)
         new_postings.append(posting)
         existing_ids.add(posting["id"])
@@ -44,3 +45,9 @@ def mark_notified(postings: list[dict], ids: set[str]) -> None:
     for posting in postings:
         if posting["id"] in ids:
             posting["notified"] = True
+
+
+def mark_scored(postings: list[dict], ids: set[str]) -> None:
+    for posting in postings:
+        if posting["id"] in ids:
+            posting["scored"] = True

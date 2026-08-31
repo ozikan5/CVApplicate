@@ -47,6 +47,7 @@ def test_merge_new_postings_marks_new_entries():
     assert len(merged) == 1
     assert merged[0]["first_seen"] == "2026-08-14"
     assert merged[0]["notified"] is False
+    assert merged[0]["scored"] is False
     assert new_postings == merged
 
 
@@ -111,3 +112,15 @@ def test_mark_notified_sets_flag_only_for_given_ids():
 
     assert postings[0]["notified"] is True
     assert postings[1]["notified"] is False
+
+
+def test_mark_scored_sets_flag_only_for_given_ids():
+    postings = [
+        {"id": "acme-1", "scored": False},
+        {"id": "acme-2", "scored": False},
+    ]
+
+    store.mark_scored(postings, {"acme-1"})
+
+    assert postings[0]["scored"] is True
+    assert postings[1]["scored"] is False
