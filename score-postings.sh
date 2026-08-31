@@ -14,4 +14,4 @@ cd "$(dirname "$0")"
 
 claude -p "Run cv-score-postings" \
   --permission-mode acceptEdits \
-  --allowedTools "Read Write(matches.local.yaml) Edit(postings.local.yaml) Bash(git show:*) Bash(git for-each-ref:*)"
+  --allowedTools "Read Edit(matches.local.yaml) Edit(postings.local.yaml) Bash(git show:*) Bash(git for-each-ref:*)"
