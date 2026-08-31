@@ -267,11 +267,15 @@ emails you a summary. See
 2. Copy `companies.example.yaml` to `companies.local.yaml` and fill in the companies
    you want to track (see the comments in that file for how to find each company's
    ATS slug).
-3. Copy `.env.example` to `.env` and fill in your SMTP credentials — for Gmail, use
+3. Optional: copy `filters.example.yaml` to `filters.local.yaml` and tune the location/
+   title/internship criteria — postings that don't match never get stored. Without
+   this file, every posting is kept, unfiltered (useful for a large company's board,
+   which can otherwise return hundreds of postings across every role and country).
+4. Copy `.env.example` to `.env` and fill in your SMTP credentials — for Gmail, use
    an App Password (https://myaccount.google.com/apppasswords), not your normal
    password.
-4. Run it once by hand to confirm it works: `python3 fetch-postings.py`
-5. To run it automatically every day:
+5. Run it once by hand to confirm it works: `python3 fetch-postings.py`
+6. To run it automatically every day:
    - Copy `launchd/com.cvapplicate.fetch-postings.plist.example` to
      `~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
    - Replace every `/ABSOLUTE/PATH/TO/CVApplicate` placeholder in that copied file
@@ -284,9 +288,9 @@ emails you a summary. See
    - It now runs daily at 8:00am; check `fetch-postings.log` in the repo for output.
    - To stop it: `launchctl unload ~/Library/LaunchAgents/com.cvapplicate.fetch-postings.plist`
 
-`companies.local.yaml`, `postings.local.yaml`, and `.env` are all gitignored — your
-real target list, fetched postings, and credentials never get committed to this
-template repo.
+`companies.local.yaml`, `filters.local.yaml`, `postings.local.yaml`, and `.env` are all
+gitignored — your real target list, filter criteria, fetched postings, and credentials
+never get committed to this template repo.
 
 ---
 

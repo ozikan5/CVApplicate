@@ -21,11 +21,13 @@ import time
 from job_fetcher.ats import fetch_postings_for_company
 from job_fetcher.config import ConfigError, load_companies
 from job_fetcher.env import load_dotenv
+from job_fetcher.filters import load_filters, matches_filters
 from job_fetcher.notify import build_summary_email, send_email, smtp_config_from_env
 from job_fetcher.store import load_postings, mark_notified, merge_new_postings, save_postings
 
 COMPANIES_PATH = "companies.local.yaml"
 POSTINGS_PATH = "postings.local.yaml"
+FILTERS_PATH = "filters.local.yaml"
 DELAY_BETWEEN_COMPANIES_SECONDS = 1
 
 
@@ -38,12 +40,28 @@ def main() -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
+    filters = load_filters(FILTERS_PATH)
+
     fetched = []
     for company in companies:
         try:
-            fetched.extend(fetch_postings_for_company(company))
+            company_postings = fetch_postings_for_company(company)
         except Exception as error:
             print(f"warning: failed to fetch {company['name']}: {error}", file=sys.stderr)
+            time.sleep(DELAY_BETWEEN_COMPANIES_SECONDS)
+            continue
+
+        if filters is not None:
+            matched = [p for p in company_postings if matches_filters(p, filters)]
+            print(
+                f"info: {company['name']} — {len(matched)}/{len(company_postings)} "
+                "postings matched filters",
+                file=sys.stderr,
+            )
+        else:
+            matched = company_postings
+
+        fetched.extend(matched)
         time.sleep(DELAY_BETWEEN_COMPANIES_SECONDS)
 
     existing = load_postings(POSTINGS_PATH)

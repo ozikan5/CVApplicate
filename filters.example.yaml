@@ -1,0 +1,92 @@
+# Copy this file to filters.local.yaml to filter fetched postings before they're
+# stored. filters.local.yaml is gitignored — your real filter preferences never get
+# committed to this template repo. If filters.local.yaml doesn't exist,
+# fetch-postings.py keeps every posting, unfiltered (today's default behavior).
+#
+# A posting is kept only if it passes every check below whose list is non-empty:
+#   - location contains one of location_keywords (case-insensitive substring)
+#   - title contains "intern" (only checked if require_internship is true)
+#   - title contains one of title_keywords (case-insensitive substring)
+#
+# location_keywords: matches against the free-text location string each ATS returns
+# ("United States", "Remote-USA", "San Francisco, California", "US - Remote" all show
+# up in practice) — so this defaults to every US state name plus common country-level
+# phrasings, not just "usa"/"united states". Caveat: a few state names are also place
+# names elsewhere (e.g. "Georgia" the country) — a location like "Tbilisi, Georgia"
+# will false-positive here. Edit the list if that matters for your target companies.
+location_keywords:
+  - "united states"
+  - "usa"
+  - "u.s."
+  - "us-remote"
+  - "remote - us"
+  - "remote-us"
+  - "remote (us)"
+  - "alabama"
+  - "alaska"
+  - "arizona"
+  - "arkansas"
+  - "california"
+  - "colorado"
+  - "connecticut"
+  - "delaware"
+  - "florida"
+  - "georgia"
+  - "hawaii"
+  - "idaho"
+  - "illinois"
+  - "indiana"
+  - "iowa"
+  - "kansas"
+  - "kentucky"
+  - "louisiana"
+  - "maine"
+  - "maryland"
+  - "massachusetts"
+  - "michigan"
+  - "minnesota"
+  - "mississippi"
+  - "missouri"
+  - "montana"
+  - "nebraska"
+  - "nevada"
+  - "new hampshire"
+  - "new jersey"
+  - "new mexico"
+  - "new york"
+  - "north carolina"
+  - "north dakota"
+  - "ohio"
+  - "oklahoma"
+  - "oregon"
+  - "pennsylvania"
+  - "rhode island"
+  - "south carolina"
+  - "south dakota"
+  - "tennessee"
+  - "texas"
+  - "utah"
+  - "vermont"
+  - "virginia"
+  - "washington"
+  - "west virginia"
+  - "wisconsin"
+  - "wyoming"
+  - "district of columbia"
+
+# Only postings whose title contains one of these are kept. Tune this to the roles
+# you actually want to see.
+title_keywords:
+  - "software engineer"
+  - "backend engineer"
+  - "ai engineer"
+  - "machine learning engineer"
+  - "ml engineer"
+  - "data engineer"
+  - "data scientist"
+  - "cloud engineer"
+  - "platform engineer"
+
+# Only keep postings whose title contains "intern" — excludes full-time roles, since
+# their titles essentially never contain that substring.
+require_internship: true

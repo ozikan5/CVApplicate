@@ -40,6 +40,7 @@ def test_main_writes_new_postings_and_marks_notified(tmp_path, monkeypatch):
 
     monkeypatch.setattr(module, "COMPANIES_PATH", str(companies_file))
     monkeypatch.setattr(module, "POSTINGS_PATH", str(postings_file))
+    monkeypatch.setattr(module, "FILTERS_PATH", str(tmp_path / "filters.local.yaml"))
     monkeypatch.setattr(module, "DELAY_BETWEEN_COMPANIES_SECONDS", 0)
     monkeypatch.setattr(module, "fetch_postings_for_company", lambda company: [FAKE_POSTING])
 
@@ -69,6 +70,7 @@ def test_main_leaves_notified_false_when_email_fails(tmp_path, monkeypatch):
 
     monkeypatch.setattr(module, "COMPANIES_PATH", str(companies_file))
     monkeypatch.setattr(module, "POSTINGS_PATH", str(postings_file))
+    monkeypatch.setattr(module, "FILTERS_PATH", str(tmp_path / "filters.local.yaml"))
     monkeypatch.setattr(module, "DELAY_BETWEEN_COMPANIES_SECONDS", 0)
     monkeypatch.setattr(module, "fetch_postings_for_company", lambda company: [FAKE_POSTING])
 
@@ -83,6 +85,49 @@ def test_main_leaves_notified_false_when_email_fails(tmp_path, monkeypatch):
     assert exit_code == 0
     saved = module.load_postings(str(postings_file))
     assert saved[0]["notified"] is False
+
+
+def test_main_drops_postings_not_matching_filters(tmp_path, monkeypatch):
+    module = _load_fetch_postings_module()
+
+    companies_file = _write_companies_file(tmp_path)
+    postings_file = tmp_path / "postings.local.yaml"
+    filters_file = tmp_path / "filters.local.yaml"
+    filters_file.write_text('title_keywords: ["cloud engineer"]\nrequire_internship: true\n')
+
+    monkeypatch.setattr(module, "COMPANIES_PATH", str(companies_file))
+    monkeypatch.setattr(module, "POSTINGS_PATH", str(postings_file))
+    monkeypatch.setattr(module, "FILTERS_PATH", str(filters_file))
+    monkeypatch.setattr(module, "DELAY_BETWEEN_COMPANIES_SECONDS", 0)
+    # FAKE_POSTING's title is "Software Engineer" — no "intern", doesn't match "cloud engineer"
+    monkeypatch.setattr(module, "fetch_postings_for_company", lambda company: [FAKE_POSTING])
+    monkeypatch.setattr(module, "smtp_config_from_env", lambda: {})
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    saved = module.load_postings(str(postings_file))
+    assert saved == []
+
+
+def test_main_keeps_all_postings_when_filters_file_absent(tmp_path, monkeypatch):
+    module = _load_fetch_postings_module()
+
+    companies_file = _write_companies_file(tmp_path)
+    postings_file = tmp_path / "postings.local.yaml"
+
+    monkeypatch.setattr(module, "COMPANIES_PATH", str(companies_file))
+    monkeypatch.setattr(module, "POSTINGS_PATH", str(postings_file))
+    monkeypatch.setattr(module, "FILTERS_PATH", str(tmp_path / "does-not-exist.yaml"))
+    monkeypatch.setattr(module, "DELAY_BETWEEN_COMPANIES_SECONDS", 0)
+    monkeypatch.setattr(module, "fetch_postings_for_company", lambda company: [FAKE_POSTING])
+    monkeypatch.setattr(module, "smtp_config_from_env", lambda: {})
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    saved = module.load_postings(str(postings_file))
+    assert len(saved) == 1
 
 
 def test_main_returns_error_code_when_companies_config_missing(tmp_path, monkeypatch):
