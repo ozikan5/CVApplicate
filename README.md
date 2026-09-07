@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into seven skills, backed by
+weak points, and submit — this packages that loop into eight skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The seven skills below
+│   └── skills/                       The eight skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -49,6 +49,7 @@ CVApplicate/
 | **cv-application-skills** | Ranks the top skill keywords for a job application's Skills field, from a JD |
 | **cv-add-coursework** | Verifies JD-named coursework against a transcript and enriches `master-data.md` with the official course description |
 | **cv-score-postings** | Scores fetched job postings against every industry branch's CV data — read-only, no edits; normally run nightly, unattended |
+| **cv-resolve-posting** | Resolves a pasted job posting URL into the tracked postings file and scores it against every industry branch |
 
 ---
 
@@ -63,7 +64,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the seven skills once, available in any directory. When this repo's skills
+This installs the eight skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -221,6 +222,27 @@ ones for the posting, each with the specific experience it's grounded in, plus a
 note for anything the JD emphasizes that your experience doesn't support. Nothing
 gets written anywhere — copy the list into the application yourself.
 
+## Scoring a posting you found yourself
+
+```
+Run cv-resolve-posting for https://job-boards.greenhouse.io/example/jobs/12345
+```
+
+The nightly fetcher only sees companies listed in `companies.local.yaml`. This
+takes any posting URL, pulls the job description, adds it to
+`postings.local.yaml`, and scores it against every industry branch right away —
+so a link someone sends you goes through the same rubric as a fetched one.
+
+It reads the posting from the ATS's own API where it recognises one (Greenhouse,
+Lever, Workday, Ashby, SmartRecruiters), from the page's schema.org markup where
+present, and from the page text otherwise. Pages that render the job description
+only in JavaScript are reported as needing a browser, which isn't supported yet
+— paste the description into `cv-review` for those.
+
+Pasting a link for a company already in `companies.local.yaml` is safe: it
+resolves to the same id the nightly fetch produces, so it reports the existing
+entry and its score rather than creating a duplicate.
+
 ---
 
 # Guardrails
@@ -354,7 +376,7 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All seven skills are implemented; six are validated end-to-end as skills.
+All eight skills are implemented; six are validated end-to-end as skills.
 `cv-score-postings` is implemented and unit-tested at the code layer (JD description
 capture, the `scored` flag) but hasn't yet been exercised through a live nightly
 `score-postings.sh` run against real postings and real branches — if that surfaces
