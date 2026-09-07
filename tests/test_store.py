@@ -124,3 +124,33 @@ def test_mark_scored_sets_flag_only_for_given_ids():
 
     assert postings[0]["scored"] is True
     assert postings[1]["scored"] is False
+
+
+def test_merge_new_postings_defaults_notified_to_false():
+    fetched = [{"id": "acme-1", "company": "Acme", "title": "Engineer"}]
+
+    merged, new = store.merge_new_postings([], fetched, "2026-09-07")
+
+    assert merged[0]["notified"] is False
+    assert new[0]["notified"] is False
+
+
+def test_merge_new_postings_can_mark_new_entries_notified():
+    fetched = [{"id": "acme-1", "company": "Acme", "title": "Engineer"}]
+
+    merged, new = store.merge_new_postings([], fetched, "2026-09-07", notified=True)
+
+    assert merged[0]["notified"] is True
+    assert merged[0]["scored"] is False
+    assert merged[0]["first_seen"] == "2026-09-07"
+    assert new[0]["notified"] is True
+
+
+def test_merge_new_postings_returns_no_new_entries_for_a_known_id():
+    existing = [{"id": "acme-1", "company": "Acme", "notified": True, "scored": True}]
+    fetched = [{"id": "acme-1", "company": "Acme", "title": "Engineer"}]
+
+    merged, new = store.merge_new_postings(existing, fetched, "2026-09-07", notified=True)
+
+    assert new == []
+    assert merged == existing

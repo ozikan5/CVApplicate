@@ -23,7 +23,7 @@ def save_postings(path: str, postings: list[dict]) -> None:
 
 
 def merge_new_postings(
-    existing: list[dict], fetched: list[dict], today: str
+    existing: list[dict], fetched: list[dict], today: str, notified: bool = False
 ) -> tuple[list[dict], list[dict]]:
     existing_ids = {p["id"] for p in existing}
     merged = list(existing)
@@ -33,7 +33,7 @@ def merge_new_postings(
             continue
         posting = dict(posting)
         posting["first_seen"] = today
-        posting["notified"] = False
+        posting["notified"] = notified
         posting["scored"] = False
         merged.append(posting)
         new_postings.append(posting)
