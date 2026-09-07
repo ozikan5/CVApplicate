@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 from pathlib import Path
 
 import pytest
 
+from job_fetcher import store
 from job_fetcher.fetching import FetchError, NeedsBrowser, UnresolvableError
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -91,3 +93,83 @@ def test_usage_error_without_arguments(capsys):
 
     assert exit_code == 2
     assert "usage:" in capsys.readouterr().err
+
+
+def test_store_mode_writes_the_posting_as_notified(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "postings.local.yaml"
+    monkeypatch.setattr(cli, "POSTINGS_PATH", str(path))
+
+    exit_code = cli.store_mode(io.StringIO(json.dumps(POSTING)))
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert json.loads(captured.out) == {
+        "stored": True,
+        "already_tracked": False,
+        "id": "stripe-8172508",
+        "scored": False,
+    }
+
+    stored = store.load_postings(str(path))
+    assert len(stored) == 1
+    assert stored[0]["notified"] is True
+    assert stored[0]["scored"] is False
+    assert "resolution" not in stored[0]
+    assert "raw_text" not in stored[0]
+
+
+def test_store_mode_reports_an_already_tracked_posting(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "postings.local.yaml"
+    monkeypatch.setattr(cli, "POSTINGS_PATH", str(path))
+    existing = dict(POSTING)
+    existing.pop("resolution")
+    existing.update({"first_seen": "2026-09-01", "notified": True, "scored": True})
+    store.save_postings(str(path), [existing])
+
+    exit_code = cli.store_mode(io.StringIO(json.dumps(POSTING)))
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "stored": False,
+        "already_tracked": True,
+        "id": "stripe-8172508",
+        "scored": True,
+    }
+    assert len(store.load_postings(str(path))) == 1
+
+
+@pytest.mark.parametrize("missing", ["company", "title", "url"])
+def test_store_mode_rejects_a_posting_with_a_null_identity_field(
+    monkeypatch, tmp_path, capsys, missing
+):
+    path = tmp_path / "postings.local.yaml"
+    monkeypatch.setattr(cli, "POSTINGS_PATH", str(path))
+    incomplete = dict(POSTING)
+    incomplete[missing] = None
+
+    exit_code = cli.store_mode(io.StringIO(json.dumps(incomplete)))
+
+    assert exit_code == 2
+    assert missing in capsys.readouterr().err
+    assert store.load_postings(str(path)) == []
+
+
+def test_store_mode_rejects_invalid_json(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "postings.local.yaml"
+    monkeypatch.setattr(cli, "POSTINGS_PATH", str(path))
+
+    exit_code = cli.store_mode(io.StringIO("not json"))
+
+    assert exit_code == 2
+    assert store.load_postings(str(path)) == []
+
+
+def test_store_mode_is_reachable_through_main(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "postings.local.yaml"
+    monkeypatch.setattr(cli, "POSTINGS_PATH", str(path))
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(POSTING)))
+
+    exit_code = cli.main(["resolve-posting.py", "--store", "-"])
+
+    assert exit_code == 0
+    assert len(store.load_postings(str(path))) == 1
