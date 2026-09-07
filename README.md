@@ -243,6 +243,12 @@ Pasting a link for a company already in `companies.local.yaml` is safe: it
 resolves to the same id the nightly fetch produces, so it reports the existing
 entry and its score rather than creating a duplicate.
 
+Unlike the CV-editing skills, this one needs **the repo, not just the plugin**:
+it shells out to `resolve-posting.py` and `job_fetcher/`, which live at the repo
+root and are not carried by `/plugin install`. On a machine where you only
+installed the plugin, the skill will run and then fail to find the script — pull
+the repo there, or run this skill from a checkout.
+
 ---
 
 # Guardrails
@@ -373,6 +379,9 @@ reinstall) to pick up the latest version.
 - A LaTeX toolchain (`latexmk`, `pdflatex`, or `tectonic`) — optional. Without one the
   skills skip compile-checking and say so in their report.
 - Python 3 for `check-cv-text.py` (bundled in the plugin — nothing to install separately)
+- For the fetcher, the scorer and `cv-resolve-posting`: Python 3 with `PyYAML`
+  (`pip install -r requirements.txt`) and a checkout of this repo, since those
+  three call scripts at the repo root rather than inside the plugin
 
 ## Status
 
@@ -382,7 +391,11 @@ capture, the `scored` flag) but hasn't yet been exercised through a live nightly
 `score-postings.sh` run against real postings and real branches — if that surfaces
 anything, please open an issue. The plugin/marketplace manifests follow the documented
 plugin schema but haven't yet been exercised through a live `/plugin install` by an end
-user either. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
+user either. `cv-resolve-posting` is unit-tested at the code layer (140 tests covering the
+five ATS adapters, the JSON-LD and page-text tiers, the degradation paths and both CLI
+modes, run against both Python 3.14 and 3.9) plus one live smoke test against a real
+Greenhouse posting — but it hasn't yet been driven end-to-end as a skill against real
+industry branches and a real `master-data.md`. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
 
 ## License
