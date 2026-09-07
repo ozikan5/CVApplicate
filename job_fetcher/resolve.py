@@ -49,13 +49,17 @@ def _is_job_posting(node: dict) -> bool:
     return False
 
 
+def _str_or_none(value):
+    """JSON-LD is untrusted third-party markup; coerce anything shaped wrong
+    (a number, a dict, a list) to None instead of trusting its type."""
+    return value if isinstance(value, str) else None
+
+
 def _jsonld_company(node: dict):
     organization = node.get("hiringOrganization")
     if isinstance(organization, dict):
-        return organization.get("name")
-    if isinstance(organization, str):
-        return organization
-    return None
+        return _str_or_none(organization.get("name"))
+    return _str_or_none(organization)
 
 
 def _jsonld_location(node: dict) -> str:
@@ -68,31 +72,32 @@ def _jsonld_location(node: dict) -> str:
     if not isinstance(address, dict):
         return "Unknown"
     parts = [
-        address.get("addressLocality"),
-        address.get("addressRegion"),
+        _str_or_none(address.get("addressLocality")),
+        _str_or_none(address.get("addressRegion")),
     ]
     joined = ", ".join(part for part in parts if part)
-    return joined or address.get("addressCountry") or "Unknown"
+    return joined or _str_or_none(address.get("addressCountry")) or "Unknown"
 
 
-def _posting_from_jsonld(node: dict, url: str):
-    title = node.get("title")
+def _posting_from_jsonld(node: dict, url: str) -> dict | None:
+    title = _str_or_none(node.get("title"))
     company = _jsonld_company(node)
     if not title or not company:
         return None
+    date_posted = _str_or_none(node.get("datePosted")) or ""
     return {
         "id": url_id(url),
         "company": company,
         "title": title,
         "url": url,
         "location": _jsonld_location(node),
-        "posted_date": (node.get("datePosted") or "")[:10],
-        "description": description_from_html(node.get("description")),
+        "posted_date": date_posted[:10],
+        "description": description_from_html(_str_or_none(node.get("description"))),
         "resolution": "jsonld",
     }
 
 
-def extract_jsonld_posting(html_text: str, url: str):
+def extract_jsonld_posting(html_text: str, url: str) -> dict | None:
     for block in _JSONLD_RE.findall(html_text):
         try:
             data = json.loads(block)

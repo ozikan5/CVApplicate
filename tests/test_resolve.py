@@ -78,6 +78,31 @@ def test_extract_jsonld_posting_requires_both_title_and_company():
     assert resolve.extract_jsonld_posting(html_text, PAGE_URL) is None
 
 
+def test_extract_jsonld_posting_tolerates_a_numeric_date_posted():
+    html_text = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":"Backend Engineer",'
+        '"hiringOrganization":{"name":"Tiny Co"},"datePosted":20260830}'
+        "</script>"
+    )
+
+    posting = resolve.extract_jsonld_posting(html_text, PAGE_URL)
+
+    assert posting is not None
+    assert posting["posted_date"] == ""
+
+
+def test_extract_jsonld_posting_rejects_a_dict_valued_title():
+    html_text = (
+        '<script type="application/ld+json">'
+        '{"@type":"JobPosting","title":{"bad":"shape"},'
+        '"hiringOrganization":{"name":"Tiny Co"}}'
+        "</script>"
+    )
+
+    assert resolve.extract_jsonld_posting(html_text, PAGE_URL) is None
+
+
 def test_extract_hints_reads_og_title_and_document_title():
     html_text = (FIXTURES / "plain_page.html").read_text()
 

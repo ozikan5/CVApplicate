@@ -259,7 +259,7 @@ ADAPTERS = [
 ]
 
 
-def find_adapter(url: str):
+def find_adapter(url: str) -> Adapter | None:
     for adapter in ADAPTERS:
         if adapter.matches(url):
             return adapter
