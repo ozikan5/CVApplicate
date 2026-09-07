@@ -138,7 +138,7 @@ def test_store_mode_reports_an_already_tracked_posting(monkeypatch, tmp_path, ca
     assert len(store.load_postings(str(path))) == 1
 
 
-@pytest.mark.parametrize("missing", ["company", "title", "url"])
+@pytest.mark.parametrize("missing", ["company", "title", "url", "description"])
 def test_store_mode_rejects_a_posting_with_a_null_identity_field(
     monkeypatch, tmp_path, capsys, missing
 ):

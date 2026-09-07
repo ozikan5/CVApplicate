@@ -35,7 +35,7 @@ USAGE = (
 )
 
 POSTINGS_PATH = "postings.local.yaml"
-REQUIRED_FIELDS = ("company", "title", "url")
+REQUIRED_FIELDS = ("company", "title", "url", "description")
 TRANSPORT_FIELDS = ("resolution", "needs_extraction", "raw_text", "hints")
 
 
@@ -80,6 +80,13 @@ def store_mode(stream) -> int:
             f"{', '.join(missing)} must not be null",
             file=sys.stderr,
         )
+        if "description" in missing:
+            print(
+                "hint: this posting has no job description, so it would be "
+                "stored but never scored. Run cv-review with the description "
+                "pasted in instead.",
+                file=sys.stderr,
+            )
         return 2
     if not posting.get("id"):
         print("error: posting is missing an id", file=sys.stderr)

@@ -204,14 +204,29 @@ writes `scored: false`, the existing scorer picks the posting up unchanged.
 
 ### Permission scope
 
+The resolve-and-store portion (steps 1-3 above) needs no `Edit` grant, because
+Python owns every write:
+
 ```
 Read Bash(python3 resolve-posting.py:*)
 ```
 
-No `Edit` grant, because Python owns every write — compare `score-postings.sh`,
-which needs `Edit(matches.local.yaml) Edit(postings.local.yaml)`. Worth keeping
-as a pattern for later phases: when deterministic code owns persistence, the
-agent needs no write permission.
+Step 4 delegates to `cv-score-postings`, which inherits *that* skill's own
+grants — `score-postings.sh` runs it with `Edit(matches.local.yaml)
+Edit(postings.local.yaml) Bash(git show:*) Bash(git for-each-ref:*)`. The
+end-to-end skill therefore needs the union of both scopes; the pattern below
+holds only for the part that stops at store mode.
+
+Worth keeping as a pattern for later phases: when deterministic code owns
+persistence, *that portion* of the agent needs no write permission — but say
+so precisely, scoped to the steps that actually stop at Python, rather than
+claiming it for the skill as a whole when a later step delegates onward.
+
+Note also that piping JSON to store mode's stdin (`echo '<json>' | python3
+resolve-posting.py --store -`) does not match a `Bash(python3
+resolve-posting.py:*)` prefix rule, because the command begins with `echo`.
+Write the payload to a temp file and redirect it in instead, so the
+invocation's first token stays `python3`.
 
 ## Error handling
 
@@ -244,10 +259,16 @@ you, and the stderr warning tells you which adapter needs attention.
   `scored` state.
 - **`needs_browser`** — exit 3, naming the existing escape hatch: run
   `cv-review` with the JD pasted.
-- **Incomplete extraction** — store mode validates `company`, `title`, and
-  `url` are non-null before merging. Otherwise exit 2, writing nothing. A
-  partial posting must never land in the YAML, because it would be scored
-  against your branches and produce a meaningless number you might act on.
+- **Incomplete extraction** — store mode validates `company`, `title`, `url`,
+  and `description` are non-null before merging. Otherwise exit 2, writing
+  nothing. `description` is included because a posting can pass JSON-LD
+  extraction with every identity field present and still carry no JD text (a
+  `JobPosting` blob missing `description`, or a Tier 3 page whose text was all
+  navigation chrome) — such a posting would store fine, then `cv-score-postings`
+  would skip it for having nothing to score, silently dead-ending the flow
+  after the CLI already reported success. A partial posting must never land in
+  the YAML, because it would either be scored against your branches and
+  produce a meaningless number, or never scored at all while looking stored.
 
 ## Testing
 

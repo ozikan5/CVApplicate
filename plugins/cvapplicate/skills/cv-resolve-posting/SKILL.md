@@ -43,6 +43,15 @@ that could not be extracted mechanically.
 5. Write the completed posting object to stdin of
    `python3 resolve-posting.py --store -`. Include every field from the resolve
    output with the nulls filled in; the script drops its own transport fields.
+   Write the JSON to a temp file first, then run:
+
+   ```
+   python3 resolve-posting.py --store - < /tmp/posting.json
+   ```
+
+   Redirection keeps the invocation's first token `python3`, matching the
+   `Bash(python3 resolve-posting.py:*)` grant below — an `echo ... | python3
+   ...` pipeline would not match that prefix rule.
 6. Read the JSON status object from stdout:
    - `already_tracked: true` — tell the user the posting is already tracked,
      give the `id`, and say whether it has been scored. If `scored` is true,
@@ -68,13 +77,15 @@ that could not be extracted mechanically.
 
 ## Permission scope
 
-This skill needs no `Edit` grant. Every write goes through
-`resolve-posting.py`, so an unattended runner needs only:
+Steps 1-6 (resolve and store) need no `Edit` grant, because every write goes
+through `resolve-posting.py`:
 
 ```
 Read Bash(python3 resolve-posting.py:*)
 ```
 
-Compare `score-postings.sh`, which must grant
-`Edit(matches.local.yaml) Edit(postings.local.yaml)`. When deterministic code
-owns persistence, the agent needs no write permission.
+Step 7 delegates to `cv-score-postings`, which is a separate skill and
+inherits its own grants — `score-postings.sh` runs it with
+`Edit(matches.local.yaml) Edit(postings.local.yaml) Bash(git show:*)
+Bash(git for-each-ref:*)`. The end-to-end skill therefore needs the union of
+both scopes; only the resolve-and-store portion is `Edit`-free on its own.
