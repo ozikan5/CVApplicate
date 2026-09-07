@@ -3,9 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 from urllib.parse import urlparse
 
-from job_fetcher.fetching import NeedsBrowser
+from job_fetcher.adapters import find_adapter
+from job_fetcher.fetching import (
+    AdapterParseError,
+    NeedsBrowser,
+    UnresolvableError,
+    UsageError,
+    http_get,
+)
 from job_fetcher.htmltext import MAX_DESCRIPTION_LENGTH, description_from_html, strip_html
 
 _JSONLD_RE = re.compile(
@@ -139,3 +147,36 @@ def resolve_generic(html_text: str, url: str) -> dict:
         "raw_text": text[:RAW_TEXT_MAX_LENGTH],
         "hints": extract_hints(html_text, url),
     }
+
+
+def resolve(url: str) -> dict:
+    if not url.startswith(("http://", "https://")):
+        raise UsageError(f"not an http(s) URL: {url}")
+
+    adapter_failed = False
+    adapter = find_adapter(url)
+    if adapter is not None:
+        try:
+            return adapter.fetch(url)
+        except AdapterParseError as error:
+            adapter_failed = True
+            print(
+                f"warning: {adapter.name} adapter failed ({error}); "
+                "falling back to generic extraction",
+                file=sys.stderr,
+            )
+
+    html_text = http_get(url, accept="text/html")
+
+    posting = extract_jsonld_posting(html_text, url)
+    if posting is not None:
+        return posting
+
+    try:
+        return resolve_generic(html_text, url)
+    except NeedsBrowser:
+        if adapter_failed:
+            raise UnresolvableError(
+                f"{adapter.name} adapter failed and the page needs a browser: {url}"
+            )
+        raise
