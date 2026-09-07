@@ -963,16 +963,20 @@ def test_find_adapter_ignores_a_workday_search_page():
 
 def test_workday_adapter_strips_the_locale_segment(monkeypatch):
     body = (FIXTURES / "workday_job.json").read_text()
-    _stub_http_get(monkeypatch, body, expected_url=WORKDAY_ENDPOINT)
+    calls = _stub_http_get(monkeypatch, body)
 
     adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+    assert calls == [WORKDAY_ENDPOINT]
 
 
 def test_workday_adapter_handles_a_url_without_a_locale(monkeypatch):
     body = (FIXTURES / "workday_job.json").read_text()
-    _stub_http_get(monkeypatch, body, expected_url=WORKDAY_ENDPOINT)
+    calls = _stub_http_get(monkeypatch, body)
 
     adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL.replace("/en-US", ""))
+
+    assert calls == [WORKDAY_ENDPOINT]
 
 
 def test_workday_adapter_produces_the_expected_posting(monkeypatch):
