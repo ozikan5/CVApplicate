@@ -223,3 +223,46 @@ def test_workday_adapter_raises_when_jobpostinginfo_is_missing(monkeypatch):
 
     with pytest.raises(AdapterParseError):
         adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+
+ASHBY_URL = "https://jobs.ashbyhq.com/openai/8fb1615c-34bf-47c4-a1d1-b7b2f836bbd3"
+
+
+def test_find_adapter_matches_ashby_posting_urls():
+    adapter = adapters.find_adapter(ASHBY_URL)
+    assert adapter is not None
+    assert adapter.name == "ashby"
+
+
+def test_ashby_adapter_selects_the_job_named_in_the_url(monkeypatch):
+    body = (FIXTURES / "ashby_board.json").read_text()
+    _stub_http_get(
+        monkeypatch,
+        body,
+        expected_url="https://api.ashbyhq.com/posting-api/job-board/openai",
+    )
+
+    posting = adapters.AshbyAdapter().fetch(ASHBY_URL)
+
+    assert posting == {
+        "id": "ashby-openai-8fb1615c-34bf-47c4-a1d1-b7b2f836bbd3",
+        "company": "Openai",
+        "title": "Technical Program Manager, Compute Infrastructure",
+        "url": ASHBY_URL,
+        "location": "San Francisco",
+        "posted_date": "2026-03-12",
+        "description": (
+            "ABOUT THE TEAM The compute infrastructure team runs the GPU fleet."
+        ),
+        "resolution": "api",
+    }
+
+
+def test_ashby_adapter_raises_when_the_uuid_is_not_on_the_board(monkeypatch):
+    body = (FIXTURES / "ashby_board.json").read_text()
+    _stub_http_get(monkeypatch, body)
+
+    with pytest.raises(AdapterParseError):
+        adapters.AshbyAdapter().fetch(
+            "https://jobs.ashbyhq.com/openai/99999999-9999-9999-9999-999999999999"
+        )

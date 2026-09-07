@@ -5,7 +5,7 @@ import re
 
 from job_fetcher.ats import normalize_greenhouse, normalize_lever
 from job_fetcher.fetching import AdapterParseError, http_get
-from job_fetcher.htmltext import description_from_html
+from job_fetcher.htmltext import description_from_html, description_from_plain
 
 
 def _company_from_slug(slug: str) -> str:
@@ -144,7 +144,56 @@ class WorkdayAdapter(Adapter):
         }
 
 
-ADAPTERS = [GreenhouseAdapter(), LeverAdapter(), WorkdayAdapter()]
+_ASHBY_RE = re.compile(
+    r"^https?://jobs\.ashbyhq\.com/([^/?#]+)/([0-9a-fA-F-]{36})"
+)
+
+
+class AshbyAdapter(Adapter):
+    name = "ashby"
+
+    def matches(self, url: str) -> bool:
+        return _ASHBY_RE.match(url) is not None
+
+    def fetch(self, url: str) -> dict:
+        match = _ASHBY_RE.match(url)
+        if match is None:
+            raise AdapterParseError(f"not an Ashby posting URL: {url}")
+        org, posting_id = match.group(1), match.group(2)
+        endpoint = f"https://api.ashbyhq.com/posting-api/job-board/{org}"
+        try:
+            raw = json.loads(http_get(endpoint))
+        except ValueError as error:
+            raise AdapterParseError(f"Ashby response was not JSON: {error}")
+
+        job = None
+        for candidate in raw.get("jobs") or []:
+            if candidate.get("id") == posting_id:
+                job = candidate
+                break
+        if job is None:
+            raise AdapterParseError(
+                f"posting {posting_id} is not on the {org} Ashby board"
+            )
+        if not job.get("title"):
+            raise AdapterParseError("Ashby posting missing title")
+
+        return {
+            "id": f"ashby-{org}-{posting_id}",
+            "company": _company_from_slug(org),
+            "title": job["title"],
+            "url": job.get("jobUrl") or url,
+            "location": job.get("location") or "Unknown",
+            "posted_date": (job.get("publishedAt") or "")[:10],
+            "description": (
+                description_from_plain(job.get("descriptionPlain"))
+                or description_from_html(job.get("descriptionHtml"))
+            ),
+            "resolution": "api",
+        }
+
+
+ADAPTERS = [GreenhouseAdapter(), LeverAdapter(), WorkdayAdapter(), AshbyAdapter()]
 
 
 def find_adapter(url: str):
