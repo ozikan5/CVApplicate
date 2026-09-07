@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import urllib.error
 
 import pytest
@@ -82,6 +83,24 @@ def test_http_get_retries_once_on_500_then_succeeds(monkeypatch):
     monkeypatch.setattr(fetching.time, "sleep", lambda seconds: None)
 
     assert fetching.http_get("https://example.com/x") == "second try"
+    assert len(calls) == 2
+
+
+def test_http_get_retries_on_socket_timeout(monkeypatch):
+    """On Python 3.9, urlopen raises socket.timeout, which is NOT a
+    TimeoutError subclass until 3.10. The handler must catch both."""
+    calls = []
+
+    def fake_urlopen(request, timeout=None):
+        calls.append(1)
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(fetching.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(fetching.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(fetching.FetchError):
+        fetching.http_get("https://example.com/x")
+
     assert len(calls) == 2
 
 

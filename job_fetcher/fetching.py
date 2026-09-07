@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -57,7 +58,7 @@ def http_get(url: str, accept: str = "application/json") -> str:
         except urllib.error.URLError as error:
             if attempt == MAX_ATTEMPTS:
                 raise FetchError(f"network error fetching {url}: {error.reason}")
-        except TimeoutError:
+        except (socket.timeout, TimeoutError):
             if attempt == MAX_ATTEMPTS:
                 raise FetchError(f"timed out fetching {url}")
         time.sleep(RETRY_BACKOFF_SECONDS)
