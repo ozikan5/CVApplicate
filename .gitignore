@@ -45,3 +45,4 @@ __pycache__/
 # Worktrees (scratch, session-managed)
 .claude/worktrees/
 .venv/
+.venv39/
