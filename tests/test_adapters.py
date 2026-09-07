@@ -320,3 +320,10 @@ def test_smartrecruiters_adapter_raises_when_the_name_is_missing(monkeypatch):
 
     with pytest.raises(AdapterParseError):
         adapters.SmartRecruitersAdapter().fetch(SMARTRECRUITERS_URL)
+
+
+def test_fetch_json_raises_on_invalid_json(monkeypatch):
+    _stub_http_get(monkeypatch, "not valid json")
+
+    with pytest.raises(AdapterParseError, match="Greenhouse response was not JSON:"):
+        adapters._fetch_json("Greenhouse", "https://example.com/x")

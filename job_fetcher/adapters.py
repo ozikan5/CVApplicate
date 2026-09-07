@@ -12,6 +12,14 @@ def _company_from_slug(slug: str) -> str:
     return slug.replace("-", " ").replace("_", " ").title()
 
 
+def _fetch_json(display_name: str, url: str):
+    """Fetch and parse JSON, converting a parse failure into AdapterParseError."""
+    try:
+        return json.loads(http_get(url))
+    except ValueError as error:
+        raise AdapterParseError(f"{display_name} response was not JSON: {error}")
+
+
 class Adapter:
     name = ""
 
@@ -42,10 +50,7 @@ class GreenhouseAdapter(Adapter):
             f"https://boards-api.greenhouse.io/v1/boards/{board}"
             f"/jobs/{job_id}?content=true"
         )
-        try:
-            raw = json.loads(http_get(endpoint))
-        except ValueError as error:
-            raise AdapterParseError(f"Greenhouse response was not JSON: {error}")
+        raw = _fetch_json("Greenhouse", endpoint)
 
         company = raw.get("company_name") or _company_from_slug(board)
         postings = normalize_greenhouse(company, board, {"jobs": [raw]})
@@ -73,10 +78,7 @@ class LeverAdapter(Adapter):
             raise AdapterParseError(f"not a Lever posting URL: {url}")
         slug, posting_id = match.group(1), match.group(2)
         endpoint = f"https://api.lever.co/v0/postings/{slug}/{posting_id}"
-        try:
-            raw = json.loads(http_get(endpoint))
-        except ValueError as error:
-            raise AdapterParseError(f"Lever response was not JSON: {error}")
+        raw = _fetch_json("Lever", endpoint)
         if not isinstance(raw, dict):
             raise AdapterParseError("Lever returned a board, not a single posting")
 
@@ -119,10 +121,7 @@ class WorkdayAdapter(Adapter):
             f"https://{tenant}.{datacenter}.myworkdayjobs.com"
             f"/wday/cxs/{tenant}/{site}/{job_path}"
         )
-        try:
-            raw = json.loads(http_get(endpoint))
-        except ValueError as error:
-            raise AdapterParseError(f"Workday response was not JSON: {error}")
+        raw = _fetch_json("Workday", endpoint)
 
         info = raw.get("jobPostingInfo") or {}
         requisition_id = info.get("jobReqId")
@@ -161,10 +160,7 @@ class AshbyAdapter(Adapter):
             raise AdapterParseError(f"not an Ashby posting URL: {url}")
         org, posting_id = match.group(1), match.group(2)
         endpoint = f"https://api.ashbyhq.com/posting-api/job-board/{org}"
-        try:
-            raw = json.loads(http_get(endpoint))
-        except ValueError as error:
-            raise AdapterParseError(f"Ashby response was not JSON: {error}")
+        raw = _fetch_json("Ashby", endpoint)
 
         job = None
         for candidate in raw.get("jobs") or []:
@@ -218,12 +214,7 @@ class SmartRecruitersAdapter(Adapter):
             f"https://api.smartrecruiters.com/v1/companies/{company_id}"
             f"/postings/{posting_id}"
         )
-        try:
-            raw = json.loads(http_get(endpoint))
-        except ValueError as error:
-            raise AdapterParseError(
-                f"SmartRecruiters response was not JSON: {error}"
-            )
+        raw = _fetch_json("SmartRecruiters", endpoint)
 
         title = raw.get("name")
         if not title:
