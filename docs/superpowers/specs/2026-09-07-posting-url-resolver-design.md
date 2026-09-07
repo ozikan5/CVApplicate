@@ -65,15 +65,51 @@ touches nothing else.
 |---|---|---|
 | Greenhouse | `job-boards.greenhouse.io/<board>/jobs/<id>` | existing boards API, single-job form |
 | Lever | `jobs.lever.co/<co>/<uuid>` | existing postings API, single-posting form |
-| Workday | `<tenant>.<dc>.myworkdayjobs.com/<site>/job/...` | the `/wday/cxs/...` JSON the page itself fetches |
+| Workday | `<tenant>.<dc>.myworkdayjobs.com[/<locale>]/<site>/job/<path>` | `/wday/cxs/<tenant>/<site>/job/<path>` (verified — see below) |
 | Ashby | `jobs.ashbyhq.com/<org>/<uuid>` | public posting API |
 | SmartRecruiters | `jobs.smartrecruiters.com/<co>/<id>` | `api.smartrecruiters.com/v1/companies/<co>/postings/<id>` |
 
 Greenhouse and Lever reuse `normalize_greenhouse` and `normalize_lever` on a
 one-element list — no new normalization logic.
 
-Workday's CxS endpoint is undocumented. That is acceptable because adapter
-failure degrades rather than blocks (see [Degradation](#degradation)).
+Workday's CxS endpoint is undocumented but was verified empirically on
+2026-09-07 against two unrelated tenants in different datacenters. It is a
+plain `GET` with `Accept: application/json` — no auth, no cookies, no session.
+Adapter failure degrades rather than blocks (see [Degradation](#degradation)),
+so the lack of a contract is tolerable.
+
+#### Verified Workday field mapping
+
+The response carries `jobPostingInfo`, `hiringOrganization`, `similarJobs`, and
+`userAuthenticated`. Only `jobPostingInfo` is used:
+
+| Posting field | Source | Note |
+|---|---|---|
+| `id` | `workday-<tenant>-<jobReqId>` | `jobReqId` is the stable requisition id, e.g. `JR2004601` |
+| `company` | **the tenant subdomain**, title-cased | see the warning below |
+| `title` | `jobPostingInfo.title` | |
+| `url` | `jobPostingInfo.externalUrl` | canonical, and already locale-free |
+| `location` | `jobPostingInfo.location` | `additionalLocations` is ignored |
+| `posted_date` | `jobPostingInfo.startDate` | already `YYYY-MM-DD` |
+| `description` | `_description_from_html(jobPostingInfo.jobDescription)` | HTML, so reuse the existing helper |
+
+**Do not use `hiringOrganization.name` for `company`.** It is the legal hiring
+entity, not the recognisable employer — an NVIDIA requisition returns
+`"IL00 Mellanox Technologies, Ltd."`. Storing that would pollute
+`applications/log.yaml` with subsidiary names you would not recognise months
+later. The tenant subdomain (`nvidia`) is the reliable source. The legal entity
+is deliberately not carried in the posting dict at all.
+
+**Do not use `postedOn`.** It is a relative human string (`"Posted Today"`) and
+is meaningless once stored. `startDate` is the real date.
+
+#### URL transform
+
+The locale segment is optional and must be stripped when present: a path
+segment matching `^[a-z]{2}(-[A-Z]{2})?$` immediately after the host. The site
+id is the segment after it (or the first segment when no locale is present).
+The tenant is the first label of the host. Everything from `/job/` onward is
+carried through verbatim.
 
 ### Files
 
