@@ -266,3 +266,57 @@ def test_ashby_adapter_raises_when_the_uuid_is_not_on_the_board(monkeypatch):
         adapters.AshbyAdapter().fetch(
             "https://jobs.ashbyhq.com/openai/99999999-9999-9999-9999-999999999999"
         )
+
+SMARTRECRUITERS_URL = (
+    "https://jobs.smartrecruiters.com/BoschGroup/744000147914329-senior-engineer"
+)
+
+
+def test_find_adapter_matches_smartrecruiters_posting_urls():
+    adapter = adapters.find_adapter(SMARTRECRUITERS_URL)
+    assert adapter is not None
+    assert adapter.name == "smartrecruiters"
+
+
+def test_smartrecruiters_adapter_produces_the_expected_posting(monkeypatch):
+    body = (FIXTURES / "smartrecruiters_job.json").read_text()
+    _stub_http_get(
+        monkeypatch,
+        body,
+        expected_url=(
+            "https://api.smartrecruiters.com/v1/companies/BoschGroup"
+            "/postings/744000147914329"
+        ),
+    )
+
+    posting = adapters.SmartRecruitersAdapter().fetch(SMARTRECRUITERS_URL)
+
+    assert posting == {
+        "id": "smartrecruiters-BoschGroup-744000147914329",
+        "company": "Bosch Group",
+        "title": "Senior Engineer - Production Planning",
+        "url": SMARTRECRUITERS_URL,
+        "location": "Jaipur, Rajasthan, India",
+        "posted_date": "2026-09-07",
+        "description": (
+            "Ensure timely production fulfilment. "
+            "Bachelors degree in engineering. Shift work possible."
+        ),
+        "resolution": "api",
+    }
+
+
+def test_smartrecruiters_adapter_excludes_the_company_boilerplate(monkeypatch):
+    body = (FIXTURES / "smartrecruiters_job.json").read_text()
+    _stub_http_get(monkeypatch, body)
+
+    posting = adapters.SmartRecruitersAdapter().fetch(SMARTRECRUITERS_URL)
+
+    assert "BOILERPLATE" not in posting["description"]
+
+
+def test_smartrecruiters_adapter_raises_when_the_name_is_missing(monkeypatch):
+    _stub_http_get(monkeypatch, json.dumps({"id": "744000147914329"}))
+
+    with pytest.raises(AdapterParseError):
+        adapters.SmartRecruitersAdapter().fetch(SMARTRECRUITERS_URL)

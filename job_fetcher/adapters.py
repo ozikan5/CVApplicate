@@ -193,7 +193,67 @@ class AshbyAdapter(Adapter):
         }
 
 
-ADAPTERS = [GreenhouseAdapter(), LeverAdapter(), WorkdayAdapter(), AshbyAdapter()]
+_SMARTRECRUITERS_RE = re.compile(
+    r"^https?://jobs\.smartrecruiters\.com/([^/?#]+)/(\d+)"
+)
+_SMARTRECRUITERS_SECTIONS = (
+    "jobDescription",
+    "qualifications",
+    "additionalInformation",
+)
+
+
+class SmartRecruitersAdapter(Adapter):
+    name = "smartrecruiters"
+
+    def matches(self, url: str) -> bool:
+        return _SMARTRECRUITERS_RE.match(url) is not None
+
+    def fetch(self, url: str) -> dict:
+        match = _SMARTRECRUITERS_RE.match(url)
+        if match is None:
+            raise AdapterParseError(f"not a SmartRecruiters posting URL: {url}")
+        company_id, posting_id = match.group(1), match.group(2)
+        endpoint = (
+            f"https://api.smartrecruiters.com/v1/companies/{company_id}"
+            f"/postings/{posting_id}"
+        )
+        try:
+            raw = json.loads(http_get(endpoint))
+        except ValueError as error:
+            raise AdapterParseError(
+                f"SmartRecruiters response was not JSON: {error}"
+            )
+
+        title = raw.get("name")
+        if not title:
+            raise AdapterParseError("SmartRecruiters response missing name")
+
+        sections = (raw.get("jobAd") or {}).get("sections") or {}
+        section_html = " ".join(
+            (sections.get(key) or {}).get("text") or ""
+            for key in _SMARTRECRUITERS_SECTIONS
+        )
+
+        return {
+            "id": f"smartrecruiters-{company_id}-{posting_id}",
+            "company": (raw.get("company") or {}).get("name") or company_id,
+            "title": title,
+            "url": raw.get("postingUrl") or url,
+            "location": (raw.get("location") or {}).get("fullLocation") or "Unknown",
+            "posted_date": (raw.get("releasedDate") or "")[:10],
+            "description": description_from_html(section_html),
+            "resolution": "api",
+        }
+
+
+ADAPTERS = [
+    GreenhouseAdapter(),
+    LeverAdapter(),
+    WorkdayAdapter(),
+    AshbyAdapter(),
+    SmartRecruitersAdapter(),
+]
 
 
 def find_adapter(url: str):

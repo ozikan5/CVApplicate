@@ -1,0 +1,34 @@
+{
+  "id": "744000147914329",
+  "name": "Senior Engineer - Production Planning",
+  "refNumber": "REF295348M",
+  "company": {"name": "Bosch Group", "identifier": "BoschGroup"},
+  "location": {
+    "city": "Jaipur",
+    "region": "Rajasthan",
+    "country": "in",
+    "fullLocation": "Jaipur, Rajasthan, India"
+  },
+  "releasedDate": "2026-09-07T11:39:37.651Z",
+  "postingUrl": "https://jobs.smartrecruiters.com/BoschGroup/744000147914329-senior-engineer",
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>MARKETING BOILERPLATE about Bosch.</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>Ensure timely production fulfilment.</p>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<p>Bachelors degree in engineering.</p>"
+      },
+      "additionalInformation": {
+        "title": "Additional Information",
+        "text": "<p>Shift work possible.</p>"
+      }
+    }
+  }
+}
