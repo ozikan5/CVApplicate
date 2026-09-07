@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from urllib.parse import urlparse
 
-from job_fetcher.htmltext import description_from_html
+from job_fetcher.fetching import NeedsBrowser
+from job_fetcher.htmltext import MAX_DESCRIPTION_LENGTH, description_from_html, strip_html
 
 _JSONLD_RE = re.compile(
     r"<script[^>]+type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
@@ -94,3 +96,46 @@ def extract_jsonld_posting(html_text: str, url: str):
                 if posting is not None:
                     return posting
     return None
+
+
+RAW_TEXT_MAX_LENGTH = 20000
+JS_SHELL_TEXT_THRESHOLD = 400
+
+_OG_TITLE_RE = re.compile(
+    r"<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']*)[\"']",
+    re.IGNORECASE,
+)
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.DOTALL | re.IGNORECASE)
+
+
+def extract_hints(html_text: str, url: str) -> dict:
+    og_match = _OG_TITLE_RE.search(html_text)
+    title_match = _TITLE_RE.search(html_text)
+    return {
+        "og_title": og_match.group(1).strip() if og_match else None,
+        "document_title": (
+            " ".join(title_match.group(1).split()) if title_match else None
+        ),
+        "domain": urlparse(url).netloc,
+    }
+
+
+def resolve_generic(html_text: str, url: str) -> dict:
+    text = strip_html(html_text)
+    if len(text) < JS_SHELL_TEXT_THRESHOLD:
+        raise NeedsBrowser(
+            f"page rendered no job description without a browser: {url}"
+        )
+    return {
+        "id": url_id(url),
+        "company": None,
+        "title": None,
+        "url": url,
+        "location": None,
+        "posted_date": "",
+        "description": text[:MAX_DESCRIPTION_LENGTH],
+        "resolution": "html",
+        "needs_extraction": True,
+        "raw_text": text[:RAW_TEXT_MAX_LENGTH],
+        "hints": extract_hints(html_text, url),
+    }

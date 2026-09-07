@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from job_fetcher import resolve
+from job_fetcher.fetching import NeedsBrowser
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -73,3 +76,55 @@ def test_extract_jsonld_posting_requires_both_title_and_company():
     )
 
     assert resolve.extract_jsonld_posting(html_text, PAGE_URL) is None
+
+
+def test_extract_hints_reads_og_title_and_document_title():
+    html_text = (FIXTURES / "plain_page.html").read_text()
+
+    hints = resolve.extract_hints(html_text, PAGE_URL)
+
+    assert hints["og_title"] == "Backend Engineer"
+    assert hints["document_title"] == "Backend Engineer at Tiny Co"
+    assert hints["domain"] == "careers.tinyco.example"
+
+
+def test_extract_hints_tolerates_missing_metadata():
+    hints = resolve.extract_hints("<html><body>hi</body></html>", PAGE_URL)
+
+    assert hints["og_title"] is None
+    assert hints["document_title"] is None
+    assert hints["domain"] == "careers.tinyco.example"
+
+
+def test_resolve_generic_leaves_fields_null_and_flags_extraction():
+    html_text = (FIXTURES / "plain_page.html").read_text()
+
+    posting = resolve.resolve_generic(html_text, PAGE_URL)
+
+    assert posting["id"] == resolve.url_id(PAGE_URL)
+    assert posting["url"] == PAGE_URL
+    assert posting["company"] is None
+    assert posting["title"] is None
+    assert posting["location"] is None
+    assert posting["posted_date"] == ""
+    assert posting["resolution"] == "html"
+    assert posting["needs_extraction"] is True
+    assert "backend engineer" in posting["raw_text"].lower()
+    assert posting["hints"]["og_title"] == "Backend Engineer"
+
+
+def test_resolve_generic_caps_raw_text():
+    html_text = "<p>" + ("word " * 20000) + "</p>"
+
+    posting = resolve.resolve_generic(html_text, PAGE_URL)
+
+    assert len(posting["raw_text"]) == resolve.RAW_TEXT_MAX_LENGTH
+
+
+def test_resolve_generic_raises_needs_browser_for_a_js_shell():
+    html_text = (FIXTURES / "js_shell_page.html").read_text()
+
+    with pytest.raises(NeedsBrowser) as excinfo:
+        resolve.resolve_generic(html_text, PAGE_URL)
+
+    assert excinfo.value.exit_code == 3
