@@ -208,8 +208,11 @@ The resolve-and-store portion (steps 1-3 above) needs no `Edit` grant, because
 Python owns every write:
 
 ```
-Read Bash(python3 resolve-posting.py:*)
+Read Write Bash(python3 resolve-posting.py:*)
 ```
+
+The `Write` grant covers payload file creation; the `Bash` grant covers the
+invocation of `resolve-posting.py --store -` itself.
 
 Step 4 delegates to `cv-score-postings`, which inherits *that* skill's own
 grants — `score-postings.sh` runs it with `Edit(matches.local.yaml)
@@ -225,8 +228,8 @@ claiming it for the skill as a whole when a later step delegates onward.
 Note also that piping JSON to store mode's stdin (`echo '<json>' | python3
 resolve-posting.py --store -`) does not match a `Bash(python3
 resolve-posting.py:*)` prefix rule, because the command begins with `echo`.
-Write the payload to a temp file and redirect it in instead, so the
-invocation's first token stays `python3`.
+Write the payload to a temp file using the Write tool and redirect it in
+instead, so the invocation's first token stays `python3`.
 
 ## Error handling
 

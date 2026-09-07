@@ -43,15 +43,18 @@ that could not be extracted mechanically.
 5. Write the completed posting object to stdin of
    `python3 resolve-posting.py --store -`. Include every field from the resolve
    output with the nulls filled in; the script drops its own transport fields.
-   Write the JSON to a temp file first, then run:
+   Create the payload file using the **Write tool** (do not use Bash commands
+   like `echo` or `cat` — they do not match the permission grant), then run:
 
    ```
    python3 resolve-posting.py --store - < /tmp/posting.json
    ```
 
    Redirection keeps the invocation's first token `python3`, matching the
-   `Bash(python3 resolve-posting.py:*)` grant below — an `echo ... | python3
-   ...` pipeline would not match that prefix rule.
+   `Bash(python3 resolve-posting.py:*)` grant below. Using the Write tool
+   avoids the prefix-match limitation: a `Bash(...)` grant does not cover
+   commands whose first token is not `python3`, so `echo` or shell redirection
+   on the file creation would fail, but the Write tool is a separate grant.
 6. Read the JSON status object from stdout:
    - `already_tracked: true` — tell the user the posting is already tracked,
      give the `id`, and say whether it has been scored. If `scored` is true,
@@ -81,8 +84,11 @@ Steps 1-6 (resolve and store) need no `Edit` grant, because every write goes
 through `resolve-posting.py`:
 
 ```
-Read Bash(python3 resolve-posting.py:*)
+Read Write Bash(python3 resolve-posting.py:*)
 ```
+
+The `Write` grant covers the payload file creation in step 5; the `Bash` grant
+covers the invocation of `resolve-posting.py --store -` itself.
 
 Step 7 delegates to `cv-score-postings`, which is a separate skill and
 inherits its own grants — `score-postings.sh` runs it with
