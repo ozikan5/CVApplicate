@@ -87,3 +87,51 @@ def test_greenhouse_adapter_raises_when_required_fields_are_missing(monkeypatch)
         adapters.GreenhouseAdapter().fetch(
             "https://job-boards.greenhouse.io/stripe/jobs/1"
         )
+
+
+def test_find_adapter_matches_lever_job_urls():
+    adapter = adapters.find_adapter(
+        "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c"
+    )
+    assert adapter is not None
+    assert adapter.name == "lever"
+
+
+def test_find_adapter_ignores_a_lever_board_root():
+    assert adapters.find_adapter("https://jobs.lever.co/palantir") is None
+
+
+def test_lever_adapter_produces_the_expected_posting(monkeypatch):
+    body = (FIXTURES / "lever_job.json").read_text()
+    _stub_http_get(
+        monkeypatch,
+        body,
+        expected_url=(
+            "https://api.lever.co/v0/postings/palantir"
+            "/ac978161-6f46-4f6b-ad9e-a258e642751c"
+        ),
+    )
+
+    posting = adapters.LeverAdapter().fetch(
+        "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c"
+    )
+
+    assert posting == {
+        "id": "palantir-ac978161-6f46-4f6b-ad9e-a258e642751c",
+        "company": "Palantir",
+        "title": "Administrative Business Partner",
+        "url": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c",
+        "location": "London, United Kingdom",
+        "posted_date": "2024-03-25",
+        "description": "Support the team. Calendar management required.",
+        "resolution": "api",
+    }
+
+
+def test_lever_adapter_raises_when_required_fields_are_missing(monkeypatch):
+    _stub_http_get(monkeypatch, json.dumps({"id": "x"}))
+
+    with pytest.raises(AdapterParseError):
+        adapters.LeverAdapter().fetch(
+            "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c"
+        )
