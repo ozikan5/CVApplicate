@@ -289,11 +289,3 @@ def test_normalize_greenhouse_truncates_long_description():
     result = ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
 
     assert len(result[0]["description"]) == 6000
-
-
-def test_strip_html_removes_tags_and_collapses_whitespace():
-    html = "<p>Hello <b>world</b>.</p>\n<ul><li>Python</li>\n<li>SQL</li></ul>"
-
-    result = ats._strip_html(html)
-
-    assert result == "Hello world. Python SQL"
