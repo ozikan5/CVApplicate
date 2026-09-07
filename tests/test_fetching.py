@@ -52,6 +52,33 @@ def test_http_get_raises_stale_message_on_404(monkeypatch):
         fetching.http_get("https://example.com/x")
 
     assert "no longer available" in str(excinfo.value)
+    assert excinfo.value.http_status == 404
+
+
+def test_fetch_error_carries_http_status_on_generic_error(monkeypatch):
+    def fake_urlopen(request, timeout=None):
+        raise urllib.error.HTTPError("https://example.com/x", 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(fetching.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(fetching.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(fetching.FetchError) as excinfo:
+        fetching.http_get("https://example.com/x")
+
+    assert excinfo.value.http_status == 403
+
+
+def test_fetch_error_has_no_http_status_on_network_error(monkeypatch):
+    def fake_urlopen(request, timeout=None):
+        raise urllib.error.URLError("dns is down")
+
+    monkeypatch.setattr(fetching.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(fetching.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(fetching.FetchError) as excinfo:
+        fetching.http_get("https://example.com/x")
+
+    assert excinfo.value.http_status is None
 
 
 def test_http_get_does_not_retry_on_404(monkeypatch):

@@ -4,7 +4,7 @@ import json
 import re
 
 from job_fetcher.ats import normalize_greenhouse, normalize_lever
-from job_fetcher.fetching import AdapterParseError, http_get
+from job_fetcher.fetching import AdapterParseError, FetchError, http_get
 from job_fetcher.htmltext import description_from_html, description_from_plain
 
 
@@ -13,11 +13,23 @@ def _company_from_slug(slug: str) -> str:
 
 
 def _fetch_json(display_name: str, url: str):
-    """Fetch and parse JSON, converting a parse failure into AdapterParseError."""
+    """Fetch and parse JSON, converting a failure into AdapterParseError so the
+    router degrades to the generic path instead of hard-failing.
+
+    A 404 is the one exception: it means the posting itself is gone, and that
+    should propagate as FetchError so the CLI reports exit 4 with "posting no
+    longer available" rather than retrying against the page's own markup.
+    """
     try:
         return json.loads(http_get(url))
     except ValueError as error:
         raise AdapterParseError(f"{display_name} response was not JSON: {error}")
+    except FetchError as error:
+        if error.http_status == 404:
+            raise
+        raise AdapterParseError(
+            f"{display_name} endpoint failed ({error}); falling back"
+        )
 
 
 class Adapter:

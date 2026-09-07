@@ -217,10 +217,17 @@ agent needs no write permission.
 
 ### Degradation
 
-When an adapter matches a URL but its response does not parse, the router does
+When an adapter matches a URL but does not produce a posting — its response
+did not parse, or its endpoint returned an HTTP error — the router does
 **not** fail. It warns on stderr and falls through to the generic path, which
 often still works because the JD is present in the served HTML. Exit 5 is
 reserved for "adapter failed *and* generic failed."
+
+The one exception is a 404 from the adapter's own endpoint: that means the
+posting itself is gone, not that the adapter broke, so it propagates as
+`FetchError` (exit 4, "posting no longer available") instead of degrading.
+Retrying a dead posting against the generic path would waste a request and
+report a confusing failure in place of a clear one.
 
 An ATS changing its API therefore degrades Tier 1 to Tier 2 instead of blocking
 you, and the stderr warning tells you which adapter needs attention.

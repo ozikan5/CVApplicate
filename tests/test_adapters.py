@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from job_fetcher import adapters
-from job_fetcher.fetching import AdapterParseError
+from job_fetcher.fetching import AdapterParseError, FetchError
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -327,3 +327,33 @@ def test_fetch_json_raises_on_invalid_json(monkeypatch):
 
     with pytest.raises(AdapterParseError, match="Greenhouse response was not JSON:"):
         adapters._fetch_json("Greenhouse", "https://example.com/x")
+
+
+def test_fetch_json_degrades_on_a_non_404_http_error(monkeypatch):
+    def fake_http_get(url, accept="application/json"):
+        raise FetchError("HTTP 403 fetching x", http_status=403)
+
+    monkeypatch.setattr(adapters, "http_get", fake_http_get)
+
+    with pytest.raises(AdapterParseError, match="falling back"):
+        adapters._fetch_json("Workday", "https://example.com/x")
+
+
+def test_fetch_json_still_raises_fetch_error_on_404(monkeypatch):
+    def fake_http_get(url, accept="application/json"):
+        raise FetchError("posting no longer available (HTTP 404): x", http_status=404)
+
+    monkeypatch.setattr(adapters, "http_get", fake_http_get)
+
+    with pytest.raises(FetchError):
+        adapters._fetch_json("Workday", "https://example.com/x")
+
+
+def test_fetch_json_degrades_on_a_network_error_with_no_status(monkeypatch):
+    def fake_http_get(url, accept="application/json"):
+        raise FetchError("network error fetching x: dns is down")
+
+    monkeypatch.setattr(adapters, "http_get", fake_http_get)
+
+    with pytest.raises(AdapterParseError, match="falling back"):
+        adapters._fetch_json("Workday", "https://example.com/x")

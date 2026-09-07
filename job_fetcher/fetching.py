@@ -29,6 +29,10 @@ class NeedsBrowser(ResolveError):
 class FetchError(ResolveError):
     exit_code = 4
 
+    def __init__(self, message, http_status=None):
+        super().__init__(message)
+        self.http_status = http_status
+
 
 class UnresolvableError(ResolveError):
     exit_code = 5
@@ -52,9 +56,12 @@ def http_get(url: str, accept: str = "application/json") -> str:
                 return response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as error:
             if error.code == 404:
-                raise FetchError(f"posting no longer available (HTTP 404): {url}")
+                raise FetchError(
+                    f"posting no longer available (HTTP 404): {url}",
+                    http_status=404,
+                )
             if error.code < 500 or attempt == MAX_ATTEMPTS:
-                raise FetchError(f"HTTP {error.code} fetching {url}")
+                raise FetchError(f"HTTP {error.code} fetching {url}", http_status=error.code)
         except urllib.error.URLError as error:
             if attempt == MAX_ATTEMPTS:
                 raise FetchError(f"network error fetching {url}: {error.reason}")
