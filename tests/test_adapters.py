@@ -135,3 +135,91 @@ def test_lever_adapter_raises_when_required_fields_are_missing(monkeypatch):
         adapters.LeverAdapter().fetch(
             "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c"
         )
+
+
+WORKDAY_PAGE_URL = (
+    "https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite"
+    "/job/Israel-Yokneam/Senior-Software-Engineer--NVLINK_JR2004601"
+)
+WORKDAY_ENDPOINT = (
+    "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite"
+    "/job/Israel-Yokneam/Senior-Software-Engineer--NVLINK_JR2004601"
+)
+
+
+def test_find_adapter_matches_workday_job_urls():
+    adapter = adapters.find_adapter(WORKDAY_PAGE_URL)
+    assert adapter is not None
+    assert adapter.name == "workday"
+
+
+def test_find_adapter_ignores_a_workday_search_page():
+    assert adapters.find_adapter(
+        "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+    ) is None
+
+
+def test_workday_adapter_strips_the_locale_segment(monkeypatch):
+    body = (FIXTURES / "workday_job.json").read_text()
+    calls = _stub_http_get(monkeypatch, body)
+
+    adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+    assert calls == [WORKDAY_ENDPOINT]
+
+
+def test_workday_adapter_handles_a_url_without_a_locale(monkeypatch):
+    body = (FIXTURES / "workday_job.json").read_text()
+    calls = _stub_http_get(monkeypatch, body)
+
+    adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL.replace("/en-US", ""))
+
+    assert calls == [WORKDAY_ENDPOINT]
+
+
+def test_workday_adapter_produces_the_expected_posting(monkeypatch):
+    body = (FIXTURES / "workday_job.json").read_text()
+    _stub_http_get(monkeypatch, body)
+
+    posting = adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+    assert posting == {
+        "id": "workday-nvidia-JR2004601",
+        "company": "Nvidia",
+        "title": "Senior Software Engineer, NVLINK",
+        "url": (
+            "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+            "/job/Israel-Yokneam/Senior-Software-Engineer--NVLINK_JR2004601"
+        ),
+        "location": "Israel, Yokneam",
+        "posted_date": "2026-09-07",
+        "description": "Work on NVLINK. C++ and CUDA required.",
+        "resolution": "api",
+    }
+
+
+def test_workday_adapter_never_uses_the_legal_hiring_entity(monkeypatch):
+    """hiringOrganization.name is a subsidiary; it must not reach the posting."""
+    body = (FIXTURES / "workday_job.json").read_text()
+    _stub_http_get(monkeypatch, body)
+
+    posting = adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+    assert "Mellanox" not in json.dumps(posting)
+
+
+def test_workday_adapter_ignores_the_relative_postedon_string(monkeypatch):
+    body = (FIXTURES / "workday_job.json").read_text()
+    _stub_http_get(monkeypatch, body)
+
+    posting = adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)
+
+    assert posting["posted_date"] == "2026-09-07"
+    assert "Posted" not in posting["posted_date"]
+
+
+def test_workday_adapter_raises_when_jobpostinginfo_is_missing(monkeypatch):
+    _stub_http_get(monkeypatch, json.dumps({"userAuthenticated": False}))
+
+    with pytest.raises(AdapterParseError):
+        adapters.WorkdayAdapter().fetch(WORKDAY_PAGE_URL)

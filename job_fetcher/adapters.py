@@ -5,6 +5,7 @@ import re
 
 from job_fetcher.ats import normalize_greenhouse, normalize_lever
 from job_fetcher.fetching import AdapterParseError, http_get
+from job_fetcher.htmltext import description_from_html
 
 
 def _company_from_slug(slug: str) -> str:
@@ -87,7 +88,63 @@ class LeverAdapter(Adapter):
         return posting
 
 
-ADAPTERS = [GreenhouseAdapter(), LeverAdapter()]
+_WORKDAY_RE = re.compile(
+    r"^https?://([^./]+)\.([a-z0-9]+)\.myworkdayjobs\.com(/[^?#]*)"
+)
+_LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[A-Za-z]{2})?$")
+
+
+class WorkdayAdapter(Adapter):
+    name = "workday"
+
+    def matches(self, url: str) -> bool:
+        match = _WORKDAY_RE.match(url)
+        return match is not None and "/job/" in match.group(3)
+
+    def fetch(self, url: str) -> dict:
+        match = _WORKDAY_RE.match(url)
+        if match is None:
+            raise AdapterParseError(f"not a Workday URL: {url}")
+        tenant, datacenter, path = match.group(1), match.group(2), match.group(3)
+
+        segments = [segment for segment in path.split("/") if segment]
+        if segments and _LOCALE_RE.match(segments[0]):
+            segments = segments[1:]
+        if len(segments) < 3 or segments[1] != "job":
+            raise AdapterParseError(f"unrecognised Workday path: {path}")
+        site = segments[0]
+        job_path = "/".join(segments[1:])
+
+        endpoint = (
+            f"https://{tenant}.{datacenter}.myworkdayjobs.com"
+            f"/wday/cxs/{tenant}/{site}/{job_path}"
+        )
+        try:
+            raw = json.loads(http_get(endpoint))
+        except ValueError as error:
+            raise AdapterParseError(f"Workday response was not JSON: {error}")
+
+        info = raw.get("jobPostingInfo") or {}
+        requisition_id = info.get("jobReqId")
+        title = info.get("title")
+        if not requisition_id or not title:
+            raise AdapterParseError(
+                "Workday response missing jobPostingInfo.jobReqId or .title"
+            )
+
+        return {
+            "id": f"workday-{tenant}-{requisition_id}",
+            "company": _company_from_slug(tenant),
+            "title": title,
+            "url": info.get("externalUrl") or url,
+            "location": info.get("location") or "Unknown",
+            "posted_date": (info.get("startDate") or "")[:10],
+            "description": description_from_html(info.get("jobDescription")),
+            "resolution": "api",
+        }
+
+
+ADAPTERS = [GreenhouseAdapter(), LeverAdapter(), WorkdayAdapter()]
 
 
 def find_adapter(url: str):
