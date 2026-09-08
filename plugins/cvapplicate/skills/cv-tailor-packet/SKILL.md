@@ -21,10 +21,10 @@ not granted those. Recording that you applied is `cv-log-application`'s job.
 
 1. Read the posting from `postings.local.yaml`. If `description` is null or empty,
    stop — never tailor against a title alone.
-2. If `packeted` is already true, find the packet by scanning `outbox/*/packet.yaml`
-   for the one whose `posting_id` matches, and report that directory. If none is
-   found, say so — the flag and the filesystem have diverged, and the user should
-   know rather than have it silently repaired.
+2. If `packeted` is already true, run `python3 pipeline.py packet-path <posting-id>`
+   and report the `path` it prints when `exists` is `true`. If `exists` is `false`,
+   say so — the flag and the filesystem have diverged, and the user should know
+   rather than have it silently repaired.
 3. Read `claims-guardrails.md` and the experience bank via
    `git show main:master-data.md`. **The guardrails are binding**, exactly as in
    `cv-review`: they state how each claim may and may not be phrased. Never write a
@@ -108,7 +108,7 @@ own throwaway locations:
 
 ```
 Read Edit(/outbox/**) Edit(/.worktrees/**) Edit(postings.local.yaml)
-Bash(git worktree:*) Bash(git show:*)
+Bash(git worktree:*) Bash(git show:*) Bash(python3 pipeline.py:*)
 Bash(latexmk:*) Bash(pdflatex:*) Bash(tectonic:*)
 ```
 

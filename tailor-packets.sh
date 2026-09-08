@@ -15,6 +15,6 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-claude -p "Drain queue.local.txt: for each URL, run cv-resolve-posting, then score it, then run cv-tailor-packet for every eligible posting that has no packet yet. Report what was packeted, what the gate rejected and why, and any queue line that was not a URL." \
+claude -p "Run 'python3 pipeline.py queue' to get this run's queue: a list of URLs and any skipped (non-URL) lines. For each of those URLs, and no others, run cv-resolve-posting, take the posting id from the resolver's JSON, score it, then run cv-tailor-packet only if it is eligible and has no packet yet. Do not tailor any posting that did not come from this run's queue output, even if cv-score-postings' own scan would surface it. Report what was packeted, what the gate rejected and why, and any skipped queue line." \
   --permission-mode acceptEdits \
-  --allowedTools "Read Edit(/outbox/**) Edit(/.worktrees/**) Edit(postings.local.yaml) Edit(matches.local.yaml) Bash(python3 resolve-posting.py:*) Bash(python3 -c:*) Bash(git worktree:*) Bash(git show:*) Bash(git for-each-ref:*) Bash(latexmk:*) Bash(pdflatex:*) Bash(tectonic:*)"
+  --allowedTools "Read Edit(/outbox/**) Edit(/.worktrees/**) Edit(postings.local.yaml) Edit(matches.local.yaml) Bash(python3 resolve-posting.py:*) Bash(python3 pipeline.py:*) Bash(git worktree:*) Bash(git show:*) Bash(git for-each-ref:*) Bash(latexmk:*) Bash(pdflatex:*) Bash(tectonic:*)"

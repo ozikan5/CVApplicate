@@ -39,37 +39,25 @@ say so and stop; don't ask the user anything.
    every posting and note in the report that no eligibility profile was found — never
    invent one.
 
-   For each unscored posting, run one helper call keyed by the posting's `id` (ids are
-   slug-shaped, e.g. `stripe-8172487` — the only value interpolated below, and there is
-   nothing in it to escape). It reads both the profile and the posting straight out of
-   their YAML files — no JD text or location text ever goes on the command line — and
-   returns everything the gate needs as JSON:
+   For each unscored posting, run:
    ```bash
-   python3 -c "
-   import json, sys, yaml
-   from job_fetcher.profile import load_profile, authorization_verdict, location_matches
-
-   posting_id = sys.argv[1]
-   profile = load_profile('profile.local.yaml')
-   postings = {p['id']: p for p in (yaml.safe_load(open('postings.local.yaml')) or [])}
-   posting = postings[posting_id]
-
-   verdict, reason = authorization_verdict(
-       posting.get('description') or '', profile.get('work_authorization')
-   )
-   print(json.dumps({
-       'location_ok': location_matches(posting.get('location'), profile.get('locations') or []),
-       'authorization': verdict,
-       'authorization_reason': reason,
-       'seeking': profile.get('seeking'),
-       'max_years_experience_required': profile.get('max_years_experience_required'),
-   }))
-   " "<posting-id>"
+   python3 pipeline.py gate <posting-id>
    ```
+   `<posting-id>` is the posting's `id` (slug-shaped, e.g. `stripe-8172487`) —
+   `pipeline.py` validates it before touching anything, so there is nothing to escape.
+   The helper reads both `profile.local.yaml` and the posting straight out of their
+   YAML files — no JD text or location text ever goes on the command line — and prints
+   everything the gate needs as JSON: `location_ok`, `authorization`,
+   `authorization_reason`, `seeking`, and `max_years_experience_required`.
+
    This re-reads `profile.local.yaml` on every call, which is fine — it's small and
    local. If you're scoring many postings in one run and want to avoid the repeated
    parse, load it once yourself for reference, but the JSON above is still what each
    posting's gate decision is based on.
+
+   `profile.local.yaml` not existing is handled by the helper itself: it prints
+   `{"profile": null}` and exits 0, matching the "skip the gate entirely" behaviour
+   described above — you don't need to check for the file yourself before calling it.
 
    Reject a posting, recording every applicable reason, when:
    - the JD states a minimum years-of-experience above the JSON's

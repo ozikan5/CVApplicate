@@ -52,9 +52,3 @@ def mark_scored(postings: list[dict], ids: set[str]) -> None:
     for posting in postings:
         if posting["id"] in ids:
             posting["scored"] = True
-
-
-def mark_packeted(postings: list[dict], ids: set[str]) -> None:
-    for posting in postings:
-        if posting["id"] in ids:
-            posting["packeted"] = True

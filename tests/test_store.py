@@ -164,21 +164,3 @@ def test_merge_new_postings_initialises_packeted_false():
     assert merged[0]["packeted"] is False
 
 
-def test_mark_packeted_sets_only_the_named_ids():
-    postings = [
-        {"id": "acme-1", "packeted": False},
-        {"id": "acme-2", "packeted": False},
-    ]
-
-    store.mark_packeted(postings, {"acme-1"})
-
-    assert postings[0]["packeted"] is True
-    assert postings[1]["packeted"] is False
-
-
-def test_mark_packeted_tolerates_a_posting_without_the_key():
-    postings = [{"id": "acme-1"}]
-
-    store.mark_packeted(postings, {"acme-1"})
-
-    assert postings[0]["packeted"] is True
