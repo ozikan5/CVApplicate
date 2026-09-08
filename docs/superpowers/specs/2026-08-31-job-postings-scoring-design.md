@@ -94,11 +94,17 @@ because JD-fit scoring is a judgment call, not a formula. Procedure:
 1. Read `postings.local.yaml`; select postings where `scored: false`.
 2. If none, exit — nothing to do tonight.
 3. Discover industry branches with `git for-each-ref --format='%(refname:short)'
-   refs/heads/` (excludes `main`, which holds shared data, not a CV).
+   refs/heads/ refs/remotes/origin/`, stripping any `origin/` prefix and de-duplicating
+   by short name (excludes `main`, which holds shared data, not a CV, and
+   `origin/HEAD`). The remote-tracking refs must be included: in a fresh clone the
+   industry branches exist only under `refs/remotes/origin/`, so reading `refs/heads/`
+   alone finds no branches and silently scores nothing.
 4. For each unscored posting with a non-null `description`:
-   - For each industry branch: read that branch's `master-data.md` and `cv.tex` via
-     `git show <branch>:master-data.md` / `git show <branch>:cv.tex` (working tree is
-     never checked out).
+   - Read the experience bank once from `main` via `git show main:master-data.md`, and
+     each industry branch's CV via `git show <branch>:cv.tex` (working tree is never
+     checked out). `master-data.md` is authoritative on `main` only — per-branch copies
+     drift behind it, and scoring against a stale copy hides experience the candidate
+     actually has. Only `cv.tex` is read per branch.
    - Apply the JD Fit rubric from `cv-review` step 5 (keyword match 40%, experience
      relevance 40%, seniority fit 20%) using the posting's `description` as the JD text.
    - Record that branch's `total` plus the three sub-scores.

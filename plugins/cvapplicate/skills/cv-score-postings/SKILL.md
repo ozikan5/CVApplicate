@@ -27,19 +27,29 @@ say so and stop; don't ask the user anything.
 1. Read `postings.local.yaml`. Select postings where `scored` is `false`. If there are
    none, report that and stop.
 2. Discover industry branches: `git for-each-ref --format='%(refname:short)'
-   refs/heads/`, excluding `main` (which holds shared data, not a CV) and any worktree
-   scratch branches. If no industry branches exist, stop and say so.
+   refs/heads/ refs/remotes/origin/`, then strip any `origin/` prefix and de-duplicate
+   by the resulting short name. Exclude `main` (which holds shared data, not a CV),
+   `origin/HEAD`, and any worktree scratch branches. Reading the remote-tracking refs
+   as well is load-bearing: in a fresh clone the industry branches exist *only* under
+   `refs/remotes/origin/`, and looking at `refs/heads/` alone reports "no industry
+   branches" and silently scores nothing. If no industry branches exist, stop and say
+   so.
 3. For each unscored posting:
    - If `description` is null or empty, don't score it. Record it in
      `matches.local.yaml` with `skipped: "no description"` and move on — never guess a
      score from the title alone.
    - Otherwise, for each industry branch:
-     - Read that branch's `master-data.md` and `cv.tex` via `git show
-       <branch>:master-data.md` and `git show <branch>:cv.tex`. Never run `git
-       checkout` — the working tree's currently checked-out branch and any uncommitted
-       changes in it must be left exactly as found.
-     - If either file is missing on that branch (e.g. a branch mid-scaffold), skip that
-       branch for this posting and note it; continue with the remaining branches.
+     - Read the shared experience bank once from `main` via `git show
+       main:master-data.md`, and that branch's CV via `git show <branch>:cv.tex`.
+       `master-data.md` is authoritative on `main` only — the per-branch copies drift
+       behind it, and scoring against a stale copy hides experience you actually have.
+       Only `cv.tex` is read per branch. Never run `git checkout` — the working tree's
+       currently checked-out branch and any uncommitted changes in it must be left
+       exactly as found.
+     - If `cv.tex` is missing on that branch (e.g. a branch mid-scaffold), skip that
+       branch for this posting and note it; continue with the remaining branches. If
+       `main` has no `master-data.md`, stop — there is no experience bank to score
+       against.
      - Score **JD Fit /100** using the same rubric `cv-review` uses:
        - Required skills/keyword match (40%): does the CV surface the specific
          skills/tools the posting's `description` asks for?
@@ -83,7 +93,8 @@ there rather than repeating every entry in chat.
 
 - `postings.local.yaml` missing or has no unscored postings → report that, stop.
 - No industry branches exist → report that, stop.
-- A branch missing `cv.tex` or `master-data.md` → skip that branch for the affected
-  posting(s), note it, continue with the remaining branches.
+- A branch missing `cv.tex` → skip that branch for the affected posting(s), note it,
+  continue with the remaining branches.
+- `main` missing `master-data.md` → stop and say so; there is nothing to score against.
 - A posting with no `description` → record as `skipped: "no description"`, mark
   `scored: true`, never scored on the title alone.
