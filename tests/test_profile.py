@@ -333,19 +333,69 @@ def test_authorization_allows_permissive_sponsorship_bullets_eeo_after():
     assert verdict == profile.OK
 
 
-def test_authorization_allows_permissive_sponsorship_bullets_eeo_before():
+def test_authorization_narrow_sponsor_window_stops_cross_bullet_false_match():
     """Regression test for the false-rejection finding: two separate <li>
     bullets merge into one pseudo-sentence with no punctuation between them
     (as htmltext.description_from_html collapses block boundaries to a bare
-    space), and used to fall inside the CPT/OPT sponsorship pattern's old
-    90-character window despite being unrelated. The verdict must be the
-    same (OK) regardless of where the EEO paragraph sits."""
-    html = f"{_EEO_P}<ul>{_SPONSOR_LI}{_CPT_LI}</ul>"
+    space), and a "cannot sponsor" phrase in one bullet used to fall inside
+    the CPT/OPT sponsorship pattern's old 90-character window and falsely
+    match an unrelated CPT/OPT mention in a separate bullet.
+
+    This was originally written (and named) as an EEO-position-independence
+    test expecting OK, with the EEO paragraph merged into the very same
+    pseudo-sentence as the sponsor/CPT bullets (no terminal punctuation
+    between them, matching how htmltext collapses block boundaries). That
+    fixture cannot actually exercise the 90-vs-55 window: whenever a
+    non-discrimination marker (e.g. "equal opportunity employer") sits in
+    the *same* sentence as the CPT/OPT mention, the pre-fix code's
+    `if _NON_DISCRIMINATION.search(sentence): continue` discards that whole
+    sentence unconditionally, before the CPT/OPT window is ever consulted --
+    so the pre-fix code returns OK regardless of the gap (verified: even an
+    18-character gap, well inside the old 90-char window, still returns OK
+    against the pre-fix code, because the sentence is never scanned at all).
+    A test built that way passes against both the pre-fix and current code
+    for a reason that has nothing to do with the window size, which is
+    exactly the placebo a reviewer flagged (measured gap 94 chars in the
+    original fixture, wider than even the old 90-char window).
+
+    To make the window itself the thing under test, the EEO paragraph below
+    ends with a period, so it forms its own sentence and the sponsor/CPT
+    pseudo-sentence has no non-discrimination marker in it at all. Given
+    that isolation:
+      - pre-fix (90-char window): the sponsor/CPT gap falls inside the old
+        window, so the disqualifying pattern falsely matches -> DISQUALIFIED.
+      - current (55-char window): the same gap falls outside the new,
+        narrower window, so the pattern does not match. With no marker to
+        suppress the AMBIGUOUS fallback, the bare "CPT" mention correctly
+        escalates rather than silently passing -> AMBIGUOUS (see _UNCLEAR's
+        "escalate rather than guess" comment in profile.py). AMBIGUOUS, not
+        OK, is the correct fixed-code outcome for an unrelated CPT mention
+        with no accompanying EEO/non-discrimination context to suppress it.
+    """
+    eeo_p = (
+        "<p>Acme Corp is an equal opportunity employer committed to a "
+        "diverse workplace.</p>"
+    )
+    sponsor_li = (
+        "<li>we are not able to sponsor employment-based work visas for "
+        "candidates in this open role</li>"
+    )
+    cpt_li = (
+        "<li>CPT/OPT students should apply through our university partner "
+        "program</li>"
+    )
+    html = f"{eeo_p}<ul>{sponsor_li}{cpt_li}</ul>"
     text = htmltext.description_from_html(html)
+
+    # Gap between "sponsor" and "CPT": inside the pre-fix 90-char window,
+    # outside the current 55-char one. Assert it so a future reword of the
+    # fixture can't silently drift out of the range this test depends on.
+    gap = text.index("CPT") - (text.lower().index("sponsor") + len("sponsor"))
+    assert 55 < gap <= 90, gap
 
     verdict, _ = profile.authorization_verdict(text, "cpt-opt")
 
-    assert verdict == profile.OK
+    assert verdict == profile.AMBIGUOUS
 
 
 def test_authorization_disqualifies_citizenship_required_beside_eeo_clause():
