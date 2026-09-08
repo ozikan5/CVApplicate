@@ -87,13 +87,15 @@ def test_gate_prints_the_expected_keys(tmp_path, monkeypatch, capsys):
     assert exit_code == 0
     result = json.loads(capsys.readouterr().out)
     assert set(result.keys()) == {
-        "location_ok",
+        "location",
+        "location_reason",
         "authorization",
         "authorization_reason",
         "seeking",
         "max_years_experience_required",
     }
-    assert result["location_ok"] is True
+    assert result["location"] == "ok"
+    assert result["location_reason"] is None
     assert result["seeking"] == "full-time"
     assert result["max_years_experience_required"] == 5
 

@@ -146,25 +146,57 @@ def test_authorization_handles_empty_text():
     assert profile.authorization_verdict("", "cpt-opt") == (profile.OK, None)
 
 
-def test_location_matches_is_case_and_substring_tolerant():
+@pytest.mark.parametrize(
+    "location_text",
+    ["San Francisco, CA", "Seattle, WA", "Remote - US", "Austin, TX"],
+)
+def test_location_verdict_escalates_real_ats_locations_instead_of_rejecting(location_text):
+    """The regression: real ATS location strings don't literally contain a profile
+    entry like "United States", but that must escalate to AMBIGUOUS for the scoring
+    skill to judge -- never a silent, invisible rejection."""
     allowed = ["United States", "Remote (US)"]
 
-    assert profile.location_matches("San Francisco, CA, United States", allowed)
-    assert profile.location_matches("remote (us)", allowed)
+    verdict, reason = profile.location_verdict(location_text, allowed)
+
+    assert verdict == profile.AMBIGUOUS
+    assert verdict != profile.DISQUALIFIED
 
 
-def test_location_matches_rejects_an_unlisted_location():
-    assert not profile.location_matches("Israel, Raanana", ["United States"])
+def test_location_verdict_matches_an_explicit_literal_hit():
+    allowed = ["United States", "Remote (US)"]
+
+    assert profile.location_verdict("San Francisco, CA, United States", allowed) == (
+        profile.OK,
+        None,
+    )
 
 
-def test_location_matches_allows_everything_when_no_locations_configured():
-    assert profile.location_matches("Israel, Raanana", [])
+def test_location_verdict_is_case_insensitive():
+    allowed = ["United States", "Remote (US)"]
+
+    assert profile.location_verdict("remote (us)", allowed) == (profile.OK, None)
 
 
-def test_location_matches_treats_missing_location_text_as_a_match():
+def test_location_verdict_allows_everything_when_no_locations_configured():
+    assert profile.location_verdict("Israel, Raanana", []) == (profile.OK, None)
+
+
+def test_location_verdict_treats_missing_or_empty_location_text_as_ok():
     """An unstated location is ambiguous, and the gate errs toward eligible."""
-    assert profile.location_matches(None, ["United States"])
-    assert profile.location_matches("", ["United States"])
+    assert profile.location_verdict(None, ["United States"]) == (profile.OK, None)
+    assert profile.location_verdict("", ["United States"]) == (profile.OK, None)
+
+
+def test_location_verdict_never_disqualifies_even_a_plainly_foreign_location():
+    """Substring matching cannot decide geography, so the deterministic layer never
+    rejects on location -- it escalates to AMBIGUOUS and the model adjudicates."""
+    verdict, reason = profile.location_verdict("Israel, Raanana", ["United States"])
+
+    assert verdict == profile.AMBIGUOUS
+    assert verdict != profile.DISQUALIFIED
+    assert reason is not None
+    assert "Israel, Raanana" in reason
+    assert "United States" in reason
 
 
 def test_authorization_survives_an_abbreviation_inside_eeo_language():

@@ -243,15 +243,26 @@ def authorization_verdict(jd_text: str, mode):
     return OK, None
 
 
-def location_matches(location_text, allowed) -> bool:
-    """True when the posting's location is acceptable.
+def location_verdict(location_text, allowed):
+    """Judge a posting's location text against the profile's allowed locations.
 
-    An empty `allowed` disables the rule, and missing location text counts as a
-    match: an unstated location is ambiguous, and the gate errs toward eligible.
+    Returns (verdict, reason). Substring matching cannot decide geography -- a real
+    ATS location field like "San Francisco, CA" does not literally contain "United
+    States", so treating a miss as a rejection silently discards eligible postings
+    (a wrongly rejected posting is invisible to the user, unlike a wrongly accepted
+    one, which merely costs a score). This never returns DISQUALIFIED: a literal
+    substring hit is a fast-path OK, and everything else escalates to AMBIGUOUS for
+    the scoring skill to adjudicate, defaulting to eligible when genuinely unclear.
     """
     if not allowed:
-        return True
+        return OK, None
     if not location_text:
-        return True
+        return OK, None
     haystack = location_text.lower()
-    return any(entry.lower() in haystack for entry in allowed)
+    if any(entry.lower() in haystack for entry in allowed):
+        return OK, None
+    return (
+        AMBIGUOUS,
+        f"{location_text!r} does not literally match any of: {', '.join(allowed)}; "
+        "judge whether it is within the allowed locations",
+    )

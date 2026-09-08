@@ -15,9 +15,9 @@ queue        Reads queue.local.txt via job_fetcher.tailor.parse_queue and
              prints {"urls": [...], "skipped": [...]}.
 gate         Loads profile.local.yaml and the named posting from
              postings.local.yaml and prints the eligibility-gate JSON:
-             location_ok, authorization, authorization_reason, seeking,
-             max_years_experience_required. If profile.local.yaml does not
-             exist, prints {"profile": null} and exits 0.
+             location, location_reason, authorization, authorization_reason,
+             seeking, max_years_experience_required. If profile.local.yaml
+             does not exist, prints {"profile": null} and exits 0.
 packet-path  Computes the packet directory for the named posting via
              job_fetcher.tailor.packet_slug against outbox/'s current
              entries and prints {"slug": ..., "path": ..., "exists": bool}.
@@ -42,7 +42,7 @@ import sys
 
 import yaml
 
-from job_fetcher.profile import load_profile, authorization_verdict, location_matches
+from job_fetcher.profile import load_profile, authorization_verdict, location_verdict
 from job_fetcher.store import load_postings
 from job_fetcher.tailor import packet_slug, parse_queue
 
@@ -98,13 +98,17 @@ def gate_mode(posting_id: str) -> int:
         print(f"error: no posting {posting_id!r} in {POSTINGS_PATH}", file=sys.stderr)
         return 4
 
-    verdict, reason = authorization_verdict(
+    auth_verdict, auth_reason = authorization_verdict(
         posting.get("description") or "", profile.get("work_authorization")
     )
+    loc_verdict, loc_reason = location_verdict(
+        posting.get("location"), profile.get("locations") or []
+    )
     print(json.dumps({
-        "location_ok": location_matches(posting.get("location"), profile.get("locations") or []),
-        "authorization": verdict,
-        "authorization_reason": reason,
+        "location": loc_verdict,
+        "location_reason": loc_reason,
+        "authorization": auth_verdict,
+        "authorization_reason": auth_reason,
         "seeking": profile.get("seeking"),
         "max_years_experience_required": profile.get("max_years_experience_required"),
     }))

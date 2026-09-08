@@ -73,7 +73,11 @@ A posting is **ineligible** when any of these holds. Each records a reason strin
 
 - the JD states a minimum years-of-experience above `max_years_experience_required`
 - `seeking` is `internship` and the JD is plainly a full-time non-internship role
-- no stated location matches `locations`
+- the stated location is judged to fall outside `locations` — `location_verdict` only
+  ever offers a literal-substring fast path or escalates to `ambiguous` (never a
+  deterministic rejection, since substring matching cannot resolve e.g.
+  "San Francisco, CA" against "United States"), so the scoring skill makes this call,
+  rejecting only when it can positively tell the location is outside the allowed set
 - the JD names a work-authorization requirement the `work_authorization` value cannot
   satisfy (see below)
 
@@ -355,8 +359,14 @@ holding nothing but those would be scope without a purpose.
 `job_fetcher/profile.py`:
 - config loading with defaults and a missing-file error message matching
   `config.py`'s style
-- `location_matches`: a listed location, an unlisted one, an empty allow-list, and
-  missing location text (which must match, since an unstated location is ambiguous)
+- `location_verdict`: a literal (case-insensitive) substring hit, a miss, an empty
+  allow-list, and missing location text (all three of the latter must come back `ok`,
+  since an unstated location is ambiguous and a disabled rule is not a rejection).
+  A miss must come back `ambiguous`, never a deterministic rejection: substring
+  matching against a free-text location field cannot resolve "San Francisco, CA"
+  against a profile entry of "United States" — the deterministic layer offers only a
+  fast path for literal hits and escalates everything else for the scoring skill to
+  judge, defaulting to eligible
 - the years-of-experience cap and whether a role is genuinely an internship are model
   judgment, not pattern matching — the spec states the rule, the skill applies it
 - **the ambiguity rule**: "or equivalent experience" and an unstated location must

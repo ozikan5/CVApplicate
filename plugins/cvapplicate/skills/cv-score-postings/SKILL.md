@@ -47,7 +47,7 @@ say so and stop; don't ask the user anything.
    `pipeline.py` validates it before touching anything, so there is nothing to escape.
    The helper reads both `profile.local.yaml` and the posting straight out of their
    YAML files — no JD text or location text ever goes on the command line — and prints
-   everything the gate needs as JSON: `location_ok`, `authorization`,
+   everything the gate needs as JSON: `location`, `location_reason`, `authorization`,
    `authorization_reason`, `seeking`, and `max_years_experience_required`.
 
    This re-reads `profile.local.yaml` on every call, which is fine — it's small and
@@ -67,7 +67,14 @@ say so and stop; don't ask the user anything.
      company blurb ("our engineers average 4+ years of experience") do not.
    - the JSON's `seeking` is `internship` and the posting is plainly a full-time
      non-internship role — also a judgment call.
-   - the JSON's `location_ok` is `false`.
+   - the JSON's `location` is `ambiguous` and you can positively tell the stated
+     location is outside the profile's allowed locations — for example a country
+     plainly not in the list. `location_verdict` never returns a deterministic
+     rejection for location (substring matching against free-text location fields
+     cannot resolve "San Francisco, CA" against "United States"), so this is always
+     your judgment call: read `location_reason`, which names both the posting's
+     location and the profile's allowed list, and decide, **defaulting to eligible
+     if genuinely unclear**.
    - the JSON's `authorization` is `disqualified` — trust it over your own reading of
      the JD; `authorization_verdict` encodes which phrasings disqualify and, critically,
      which do not. If `authorization` is `ambiguous`, you adjudicate: read the quoted
