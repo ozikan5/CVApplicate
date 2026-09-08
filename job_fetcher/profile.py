@@ -87,20 +87,50 @@ def _split_sentences(text: str) -> list:
     ]
 
 # A match inside any of these is a non-discrimination statement, which is the
-# opposite of a requirement. Discard the whole sentence.
+# opposite of a requirement.
 _NON_DISCRIMINATION = re.compile(
     r"(regardless of|without regard to|does not discriminate|"
     r"equal opportunity|equal employment)",
     re.I,
 )
 
+# Stored descriptions come from job_fetcher.htmltext.description_from_html,
+# which strips tags and collapses ALL whitespace to single spaces. Real JD
+# <li> bullets carry no terminal punctuation, so an entire requirements list
+# can merge into whatever prose follows (or precedes) it into one
+# pseudo-"sentence" as far as _split_sentences is concerned. Discarding that
+# whole pseudo-sentence whenever it happens to contain a non-discrimination
+# marker anywhere would throw away a merged, unrelated requirement along with
+# the marker (a false negative -- the critical failure mode here). Instead we
+# redact only the marker phrase itself (e.g. "equal opportunity"), which is
+# always safe to drop since it is never itself a requirement, and keep
+# scanning the rest of the sentence -- both before and after the marker --
+# for disqualifying language.
+def _redact_non_discrimination_markers(sentence: str) -> str:
+    return _NON_DISCRIMINATION.sub(" ", sentence)
+
+
+# Shared across both CPT/OPT sponsorship patterns so "do(es) not" reads the
+# same as "not able to" / "cannot" / "unable to" in either frame.
+_SPONSOR_MODAL = r"(?:not able to|cannot|can't|unable to|do(?:es)?\s+not)"
+
 _DISQUALIFYING = (
     (
-        re.compile(r"(not able to|cannot|can't|unable to)\s+sponsor[^;]{0,90}\b(CPT|OPT)\b", re.I),
+        # Window reduced from 90 to 55. The real fixture
+        # ("...not able to sponsor visas, including CPT/OPT...") needs only
+        # 18 chars between "sponsor" and "CPT"/"OPT"; the existing
+        # test_authorization_still_disqualifies_across_an_abbreviation
+        # fixture (a parenthetical "per Acme Inc. guidelines," aside) needs
+        # 49, which sets the floor here since that test must keep passing
+        # unmodified. 55 leaves a small margin above that floor while still
+        # being far short of 90, so it can no longer span two merged <li>
+        # bullets from htmltext.description_from_html separated by ~90+
+        # characters of unrelated bullet text.
+        re.compile(_SPONSOR_MODAL + r"\s+sponsor[^;]{0,55}\b(CPT|OPT)\b", re.I),
         "employer states it cannot sponsor CPT/OPT",
     ),
     (
-        re.compile(r"(do(es)? not|cannot|can't|unable to)\s+(hire|accept|employ)[^;]{0,60}\b(CPT|OPT)\b", re.I),
+        re.compile(_SPONSOR_MODAL + r"\s+(hire|accept|employ)[^;]{0,60}\b(CPT|OPT)\b", re.I),
         "employer does not accept CPT/OPT",
     ),
     (
@@ -108,22 +138,37 @@ _DISQUALIFYING = (
         "US citizenship required",
     ),
     (
-        re.compile(r"must be (a|an)\s+U\.?S\.?\s+citizen", re.I),
+        re.compile(r"requires?\s+U\.?S\.?\s+citizenship", re.I),
+        "US citizenship required",
+    ),
+    (
+        re.compile(r"must be\s+(?:(?:a|an)\s+)?U\.?S\.?\s+citizens?\b", re.I),
         "must be a US citizen",
     ),
     (
-        re.compile(r"U\.?S\.?\s+citizens?(\s+or\s+permanent\s+residents?)?\s+only", re.I),
+        re.compile(
+            r"(U\.?S\.?\s+citizens?(\s+or\s+permanent\s+residents?)?\s+only"
+            r"|only\s+U\.?S\.?\s+citizens?(\s+or\s+permanent\s+residents?)?)",
+            re.I,
+        ),
         "US citizens or permanent residents only",
     ),
     (
-        re.compile(r"(ability to (hold or )?obtain|active|current)[^;]{0,30}security clearance", re.I),
+        re.compile(
+            r"(ability to (hold or )?obtain|able to obtain|active|current"
+            r"|must\s+(?:be\s+able\s+to\s+)?(?:obtain|maintain)|TS/?SCI)"
+            r"[^;]{0,30}clearance",
+            re.I,
+        ),
         "security clearance required",
     ),
 )
 
 # Mentions that are relevant but match no known disqualifying frame: escalate
-# rather than guess.
-_UNCLEAR = re.compile(r"\b(CPT|OPT)\b|citizenship|citizen", re.I)
+# rather than guess. "clearance" is included so a clearance mention that
+# misses the (deliberately specific) disqualifying pattern above -- e.g. an
+# unusual phrasing -- still surfaces as AMBIGUOUS instead of passing silently.
+_UNCLEAR = re.compile(r"\b(CPT|OPT)\b|citizenship|citizen|clearance", re.I)
 
 
 def authorization_verdict(jd_text: str, mode):
@@ -136,12 +181,21 @@ def authorization_verdict(jd_text: str, mode):
 
     unclear_reason = None
     for sentence in _split_sentences(jd_text):
-        if _NON_DISCRIMINATION.search(sentence):
-            continue
+        has_marker = _NON_DISCRIMINATION.search(sentence) is not None
+        scan_text = _redact_non_discrimination_markers(sentence) if has_marker else sentence
+
         for pattern, reason in _DISQUALIFYING:
-            if pattern.search(sentence):
+            if pattern.search(scan_text):
                 return DISQUALIFIED, reason
-        if unclear_reason is None and _UNCLEAR.search(sentence):
+
+        # A non-discrimination marker anywhere in the sentence suppresses the
+        # AMBIGUOUS fallback for it too: real EEO boilerplate ("regardless of
+        # race, ..., citizenship, ...") legitimately contains words like
+        # "citizenship" nowhere near any disqualifying frame, and merged HTML
+        # blocks can put an unrelated bare "CPT/OPT" mention in the same
+        # pseudo-sentence as EEO language without that mention itself
+        # implying anything about eligibility.
+        if not has_marker and unclear_reason is None and _UNCLEAR.search(sentence):
             unclear_reason = (
                 "work-authorization language present but not clearly disqualifying: "
                 + " ".join(sentence.split())[:160]

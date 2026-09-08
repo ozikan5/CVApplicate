@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from job_fetcher import profile
+from job_fetcher import htmltext, profile
 
 
 def _write(tmp_path, text):
@@ -272,3 +272,155 @@ def test_split_sentences_still_protects_real_abbreviations_after_anchoring():
         "Send to e.g. the U.S.A. team.",
         "Citizenship is required.",
     ]
+
+
+# --- The seam: description_from_html -> authorization_verdict ---------------
+#
+# Nothing previously fed real htmltext output into authorization_verdict,
+# which is the only place the gate meets its actual input. htmltext.strip_html
+# collapses every block tag boundary (<li>, <p>, <ul>, ...) to a single space
+# with NO punctuation, so a bulleted requirements list merges into whatever
+# prose follows (or precedes) it into one pseudo-sentence. These fixtures
+# deliberately omit terminal punctuation on individual bullets/paragraphs (as
+# real ATS-authored HTML often does) so they exercise that exact merge.
+
+_CITIZEN_LI = (
+    "<li>Applicants must be a U.S. citizen due to federal contract "
+    "requirements for this role</li>"
+)
+_EEO_P = (
+    "<p>Acme Corp is an equal opportunity employer committed to a diverse "
+    "workplace</p>"
+)
+_SPONSOR_LI = (
+    "<li>we are not able to sponsor employment-based work visas for "
+    "candidates applying to this particular open engineering role</li>"
+)
+_CPT_LI = (
+    "<li>CPT/OPT students should apply through our university partner "
+    "program</li>"
+)
+
+
+def test_authorization_disqualifies_citizen_bullet_with_eeo_paragraph_after():
+    html = f"<ul>{_CITIZEN_LI}</ul>{_EEO_P}"
+    text = htmltext.description_from_html(html)
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_disqualifies_citizen_bullet_with_eeo_paragraph_before():
+    """Position must not matter: the EEO paragraph sits before the
+    disqualifying bullet here, the opposite of the previous test."""
+    html = f"{_EEO_P}<ul>{_CITIZEN_LI}</ul>"
+    text = htmltext.description_from_html(html)
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_allows_permissive_sponsorship_bullets_eeo_after():
+    html = f"<ul>{_SPONSOR_LI}{_CPT_LI}</ul>{_EEO_P}"
+    text = htmltext.description_from_html(html)
+
+    verdict, _ = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.OK
+
+
+def test_authorization_allows_permissive_sponsorship_bullets_eeo_before():
+    """Regression test for the false-rejection finding: two separate <li>
+    bullets merge into one pseudo-sentence with no punctuation between them
+    (as htmltext.description_from_html collapses block boundaries to a bare
+    space), and used to fall inside the CPT/OPT sponsorship pattern's old
+    90-character window despite being unrelated. The verdict must be the
+    same (OK) regardless of where the EEO paragraph sits."""
+    html = f"{_EEO_P}<ul>{_SPONSOR_LI}{_CPT_LI}</ul>"
+    text = htmltext.description_from_html(html)
+
+    verdict, _ = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.OK
+
+
+def test_authorization_disqualifies_citizenship_required_beside_eeo_clause():
+    text = (
+        "U.S. citizenship is required, and we are an equal opportunity "
+        "employer."
+    )
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_does_not_pass_a_clearance_requirement_silently():
+    text = "Requires a TS/SCI clearance with polygraph."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    # AMBIGUOUS would also be an acceptable outcome per the spec; this
+    # implementation broadens the disqualifying clearance pattern to catch
+    # "TS/SCI clearance" directly.
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_disqualifies_do_not_sponsor_cpt_opt():
+    text = "We do not sponsor CPT/OPT."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert "CPT" in reason
+
+
+def test_authorization_disqualifies_leading_only_us_citizens():
+    text = "Only U.S. citizens will be considered."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_disqualifies_not_able_to_hire_on_cpt_or_opt():
+    text = "We are not able to hire students on CPT or OPT."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert "CPT" in reason
+
+
+def test_authorization_disqualifies_plural_citizens_without_article():
+    text = "Applicants must be US citizens and able to start immediately."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_disqualifies_requires_citizenship_word_order():
+    text = "This position requires US citizenship."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_authorization_escalates_an_obtain_clearance_phrasing_not_in_pattern():
+    text = "Must be able to obtain and maintain a security clearance."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict != profile.OK
+    assert reason
