@@ -22,7 +22,10 @@ before proceeding.
 3. Check the branch doesn't already exist: `git branch --list <industry>`. If it
    exists, tell the user and stop rather than overwriting it.
 4. Create and switch to the branch: `git checkout -b <industry>`.
-5. Read `master-data.md` in full and the current `cv.tex`.
+5. Read the shared experience bank via `git show main:master-data.md` and the current
+   `cv.tex`. The new branch still has an inherited copy of `master-data.md` at this
+   point; step 8 removes it. Read it through `git show` regardless, so this step reads
+   the same way on a fresh branch and an established one.
 6. Adapt `cv.tex` for `<industry>`: select, reorder, and reword bullets from
    `master-data.md` to emphasize what's most relevant to that field. Keep the same
    LaTeX structure/formatting as the base template — only the content selection and
@@ -33,10 +36,16 @@ before proceeding.
      report that compilation was not verified, so no PDF was produced.
    - If found, compile `cv.tex`. On failure, fix the LaTeX error before continuing —
      do not commit broken LaTeX.
-8. Commit: `git add cv.tex && git commit -m "Adapt CV for <industry>"`.
+8. Remove the inherited copy of the experience bank from this branch and commit both
+   changes together:
+   `git rm --quiet master-data.md && git add cv.tex && git commit -m "Adapt CV for <industry>"`
+   `master-data.md` is authoritative on `main` only. A copy left on the branch drifts
+   behind `main` as your experience grows, and any skill that read it as a path would
+   silently score and write from stale content — so every industry branch is kept
+   without it by construction.
 9. Rename the compiled PDF to `First_Last_CV_Industry.pdf` before delivering it —
-    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
-    section), Industry the single-word `<industry>` slug from this run (e.g.
+    First/Last from the name in `cv.tex`'s header (or the Contact section of
+    `git show main:master-data.md`), Industry the single-word `<industry>` slug from this run (e.g.
     `Consulting`, capitalized; if it's hyphenated like `quant-trading`, collapse it
     to one word, e.g. `QuantTrading`). Deliver that file to the user as a
     downloadable file.

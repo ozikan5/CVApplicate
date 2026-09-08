@@ -30,8 +30,10 @@ currently checked out doesn't matter and never gets switched.
 
 ## Procedure
 
-1. Read `master-data.md` (full experience bank) and `claims-guardrails.md` (binding
-   constraints on how any claim may be phrased/scoped) in full. If
+1. Read the full experience bank via `git show main:master-data.md` — it is tracked on
+   `main` only, and this skill does not check out a branch, so it may be invoked from
+   any of them — and `claims-guardrails.md` (binding constraints on how any claim may be
+   phrased/scoped) in full. If
    `claims-guardrails.md` is missing, proceed but say so in the report and be
    conservative about what counts as "grounded."
 2. Extract the JD's explicit skill, technology, and competency terms.

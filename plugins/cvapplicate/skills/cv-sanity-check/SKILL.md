@@ -56,7 +56,10 @@ correct. Judge each one — but never ignore the list wholesale.
 
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted.
-2. Read `cv.tex`, plus `claims-guardrails.md` and `master-data.md` if they exist.
+2. Read `cv.tex`, plus `claims-guardrails.md` if it exists, and the shared experience
+   bank via `git show main:master-data.md`. That file is tracked on `main` only, so it
+   will not be in an industry branch's tree — read it through `git show`, and if the
+   command fails, proceed without it and say so in the report.
 3. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-cv-text.py" cv.tex` (Pass 1) and read every finding. Then do your
    own Pass 2 reading for what the script cannot detect. Decide, per finding, whether
    it's a real problem or an unavoidable domain term — and say which in your report.
@@ -76,8 +79,8 @@ correct. Judge each one — but never ignore the list wholesale.
      report the compile error, and stop — do not commit.
 6. Commit: `git add cv.tex && git commit -m "Sanity check: fix AI-writing smells"`.
 6a. Rename the compiled PDF to `First_Last_CV_Branch.pdf` before delivering it —
-    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
-    section), Branch the current branch name from `git branch --show-current`
+    First/Last from the name in `cv.tex`'s header (or the Contact section of
+    `git show main:master-data.md`), Branch the current branch name from `git branch --show-current`
     (capitalized as one word, e.g. `Swe`, `Consulting`; collapse a hyphenated name
     like `quant-trading` to one word, e.g. `QuantTrading`). Deliver that file to the
     user as a downloadable file, then clean build artifacts (e.g. `latexmk -c`) and

@@ -28,7 +28,10 @@ Ask for anything missing before starting:
 1. Run `git status` to confirm the working tree is clean. If not, stop and tell the
    user what's uncommitted — do not proceed until it's clean.
 2. Run `git checkout <industry-branch>`.
-3. Read `cv.tex`, `master-data.md`, and `claims-guardrails.md` in full.
+3. Read `cv.tex` and `claims-guardrails.md` in full, plus the shared experience bank
+   via `git show main:master-data.md`. `master-data.md` is tracked on `main` only and is
+   deliberately absent from this branch's tree, so read it through `git show` — never as
+   a path, which would fail here.
    **The guardrails are binding.** They state how each claim may and may not be
    phrased — metric scopes, ownership verbs, production status, attribution limits.
    Never write a bullet that violates one, even if it would score higher.
@@ -51,8 +54,8 @@ Ask for anything missing before starting:
    than the guardrails permit, or toward something not grounded in `master-data.md`,
    keep the honest phrasing and report the gap instead — never invent experience. If a
    fix rephrases an experience bullet, note the improved wording — you'll write it into
-   `master-data.md` at step 12. Do **not** edit `master-data.md` on this branch: it is
-   authoritative on `main` only, so editing it here would fragment it across branches.
+   `master-data.md` at step 12, on `main`. There is nothing to edit here: the file is
+   tracked on `main` only, which is what keeps it from fragmenting across branches.
 8. Compile-check the edit using whichever of these is found first on the system:
    `latexmk`, then `pdflatex`, then `tectonic` (check with e.g. `which latexmk`).
    - If none are found, skip this step and note in your final report that
@@ -63,8 +66,8 @@ Ask for anything missing before starting:
    `git add cv.tex && git commit -m "Review: <company> <role>"`
    Record the resulting commit SHA (`git rev-parse HEAD`) for step 12's `cv_commit`.
 9a. Rename the compiled PDF to `First_Last_CV_Company.pdf` before delivering it —
-    First/Last from the name in `cv.tex`'s header (or `master-data.md`'s Contact
-    section), Company a single word/token identifying the employer (its own common
+    First/Last from the name in `cv.tex`'s header (or the Contact section of
+    `git show main:master-data.md`), Company a single word/token identifying the employer (its own common
     short name or acronym if it has one, e.g. `CTC` for Chicago Trading Company,
     `Bain` for Bain & Company; otherwise the first distinctive word of the company
     name — never the full multi-word name). Deliver that file to the user as a
