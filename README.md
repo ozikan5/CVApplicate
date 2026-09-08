@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into eight skills, backed by
+weak points, and submit — this packages that loop into ten skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The eight skills below
+│   └── skills/                       The ten skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -50,6 +50,8 @@ CVApplicate/
 | **cv-add-coursework** | Verifies JD-named coursework against a transcript and enriches `master-data.md` with the official course description |
 | **cv-score-postings** | Scores fetched job postings against every industry branch's CV data — read-only, no edits; normally run nightly, unattended |
 | **cv-resolve-posting** | Resolves a pasted job posting URL into the tracked postings file and scores it against every industry branch |
+| **cv-tailor-packet** | Tailors the CV for one scored posting and writes a submit-ready packet to `outbox/` — never commits, never claims you applied |
+| **cv-log-application** | Records that you actually submitted a packet: commits that CV to the industry branch and appends the log entry |
 
 ---
 
@@ -64,7 +66,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the eight skills once, available in any directory. When this repo's skills
+This installs the ten skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -249,6 +251,42 @@ root and are not carried by `/plugin install`. On a machine where you only
 installed the plugin, the skill will run and then fail to find the script — pull
 the repo there, or run this skill from a checkout.
 
+## Building a packet to submit
+
+Add posting URLs to `queue.local.txt`, one per line:
+
+```
+# things to apply to
+https://job-boards.greenhouse.io/example/jobs/12345
+```
+
+Then drain it:
+
+```bash
+./tailor-packets.sh
+```
+
+Each eligible posting becomes a folder under `outbox/` holding the tailored PDF, the
+`cv.tex` behind it, the ranked skills list for the portal's Skills field, the gap list,
+and the before/after scores. Nothing is committed and nothing is logged — a packet is
+a draft, not an application.
+
+Postings you cannot accept never reach a tailoring pass. `profile.local.yaml` states
+what you are seeking and eligible for, and the gate rejects clear-cut mismatches —
+too much required experience, wrong location, citizens-only roles — recording the
+reasons in `matches.local.yaml` instead of a misleading score. Ambiguous cases are
+deliberately allowed through.
+
+When you have actually submitted one:
+
+```
+Run cv-log-application for Example Corp
+```
+
+That commits the packet's `cv.tex` to the industry branch and writes the log entry
+with the real submission date, so `git show <cv_commit>:cv.tex` recovers exactly what
+you sent — for the applications you really made, and no others.
+
 ---
 
 # Guardrails
@@ -395,7 +433,7 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All eight skills are implemented; six are validated end-to-end as skills.
+All ten skills are implemented; six are validated end-to-end as skills.
 `cv-score-postings` is implemented and unit-tested at the code layer (JD description
 capture, the `scored` flag) but hasn't yet been exercised through a live nightly
 `score-postings.sh` run against real postings and real branches — if that surfaces
