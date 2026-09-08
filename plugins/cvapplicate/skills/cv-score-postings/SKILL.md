@@ -39,46 +39,51 @@ say so and stop; don't ask the user anything.
    every posting and note in the report that no eligibility profile was found — never
    invent one.
 
-   Load the profile once (reuse the values for every posting this run):
+   For each unscored posting, run one helper call keyed by the posting's `id` (ids are
+   slug-shaped, e.g. `stripe-8172487` — the only value interpolated below, and there is
+   nothing in it to escape). It reads both the profile and the posting straight out of
+   their YAML files — no JD text or location text ever goes on the command line — and
+   returns everything the gate needs as JSON:
    ```bash
    python3 -c "
-   from job_fetcher.profile import load_profile
-   import json
-   print(json.dumps(load_profile('profile.local.yaml')))
-   "
+   import json, sys, yaml
+   from job_fetcher.profile import load_profile, authorization_verdict, location_matches
+
+   posting_id = sys.argv[1]
+   profile = load_profile('profile.local.yaml')
+   postings = {p['id']: p for p in (yaml.safe_load(open('postings.local.yaml')) or [])}
+   posting = postings[posting_id]
+
+   verdict, reason = authorization_verdict(
+       posting.get('description') or '', profile.get('work_authorization')
+   )
+   print(json.dumps({
+       'location_ok': location_matches(posting.get('location'), profile.get('locations') or []),
+       'authorization': verdict,
+       'authorization_reason': reason,
+       'seeking': profile.get('seeking'),
+       'max_years_experience_required': profile.get('max_years_experience_required'),
+   }))
+   " "<posting-id>"
    ```
+   This re-reads `profile.local.yaml` on every call, which is fine — it's small and
+   local. If you're scoring many postings in one run and want to avoid the repeated
+   parse, load it once yourself for reference, but the JSON above is still what each
+   posting's gate decision is based on.
 
    Reject a posting, recording every applicable reason, when:
-   - the JD states a minimum years-of-experience above
+   - the JD states a minimum years-of-experience above the JSON's
      `max_years_experience_required`. This is a judgment call, not pattern-matching:
      decide whether the figure is a *requirement* rather than incidental prose —
      "4+ years of experience" in a requirements list counts, the same words inside a
      company blurb ("our engineers average 4+ years of experience") do not.
-   - `seeking` is `internship` and the posting is plainly a full-time
+   - the JSON's `seeking` is `internship` and the posting is plainly a full-time
      non-internship role — also a judgment call.
-   - `locations` is non-empty and no stated location matches. Check this with
-     `location_matches` rather than eyeballing the text:
-     ```bash
-     python3 -c "
-     from job_fetcher.profile import location_matches
-     print(location_matches('<posting location text>', <profile['locations']>))
-     "
-     ```
-   - the work-authorization check returns `disqualified`. Write the posting's
-     `description` to a temp file with the **Write tool** (a Bash heredoc cannot
-     reliably carry arbitrary JD text), then run `authorization_verdict` on it. Run
-     the helper rather than judging authorization language yourself — it encodes
-     which phrasings disqualify and, critically, which do not:
-     ```bash
-     python3 -c "
-     from job_fetcher.profile import authorization_verdict
-     jd_text = open('/tmp/jd.txt', encoding='utf-8').read()
-     verdict, reason = authorization_verdict(jd_text, '<profile work_authorization>')
-     print(verdict, reason or '')
-     "
-     ```
-     If it returns `ambiguous`, you adjudicate: read the quoted sentence in `reason`
-     and decide, defaulting to eligible.
+   - the JSON's `location_ok` is `false`.
+   - the JSON's `authorization` is `disqualified` — trust it over your own reading of
+     the JD; `authorization_verdict` encodes which phrasings disqualify and, critically,
+     which do not. If `authorization` is `ambiguous`, you adjudicate: read the quoted
+     sentence in `authorization_reason` and decide, defaulting to eligible.
 
    **When a rule is ambiguous, the posting stays eligible** and the ambiguity goes
    into the rationale. A gate that guesses is worse than no gate: a wrongly rejected
