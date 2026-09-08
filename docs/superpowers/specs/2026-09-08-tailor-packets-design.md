@@ -114,6 +114,54 @@ omitted key both disable the rule. When the phrasing does not clearly fall into 
 disqualifying list, the ambiguity rule applies: the posting stays eligible and the
 wording is noted.
 
+#### The rule must require requirement-framing, and must exclude EEO boilerplate
+
+Three real phrasings, taken from a live board on 2026-09-08, define the rule's edges.
+All three become fixtures.
+
+1. **Disqualifying, and only detectable via the CPT/OPT qualifier:**
+   > "Unfortunately, we are not able to sponsor visas, including CPT/OPT or employ
+   > corp-to-corp."
+
+   "not able to sponsor visas" on its own is permissive per the rules above. It is the
+   trailing "including CPT/OPT" that disqualifies. A rule keyed on "sponsor" gets the
+   right answer here for the wrong reason, and the wrong answer everywhere else.
+
+2. **Disqualifying, requirement-framed:**
+   > "Clearance: Ability to hold or obtain a U.S. security clearance; U.S. citizenship
+   > as required for cleared federal work."
+
+3. **NOT disqualifying — and this is the trap that matters most:** an eligible Summer
+   2027 software engineering internship in San Francisco whose only occurrence of the
+   word "citizenship" is its equal-opportunity statement:
+   > "…regardless of race, color, ancestry, religion, sex, national origin, sexual
+   > orientation, age, citizenship, marital status, disability status, gender identity
+   > or Veteran status."
+
+   This is a non-discrimination statement — the opposite of a requirement — and
+   near-identical language appears in most US postings. A naive rule matching
+   "citizenship" disqualifies almost every posting the user is actually eligible for,
+   while passing a test suite built only from cases 1 and 2.
+
+The rule therefore has two obligations: a match must carry **requirement framing**
+("must be", "required", "only", "not able to"), and any match inside a
+**non-discrimination context** ("regardless of", "without regard to", "does not
+discriminate", "equal opportunity") is discarded outright.
+
+#### Where the judgment lives
+
+Eligibility is judgment, not parsing, but it is not *only* judgment. The split:
+
+- `job_fetcher/profile.py` returns one of `disqualified(reason)`, `ok`, or `ambiguous`
+  for the authorization question, using patterns that demand requirement framing and
+  discard non-discrimination context. This is deterministic and unit-testable against
+  the three fixtures above.
+- The scoring skill adjudicates `ambiguous`, and owns the softer questions a regex
+  should not decide — whether a role is genuinely an internship, and whether a stated
+  years-of-experience figure is a requirement or incidental prose.
+
+Deterministic where it can be tested, model judgment where it cannot.
+
 **A queued URL bypasses nothing.** The gate applies to queued postings too, but an
 ineligible queued posting is reported to you with its reasons rather than silently
 skipped, since you asked for it explicitly. It is not tailored.
