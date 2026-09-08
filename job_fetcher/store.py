@@ -35,6 +35,7 @@ def merge_new_postings(
         posting["first_seen"] = today
         posting["notified"] = notified
         posting["scored"] = False
+        posting["packeted"] = False
         merged.append(posting)
         new_postings.append(posting)
         existing_ids.add(posting["id"])
@@ -51,3 +52,9 @@ def mark_scored(postings: list[dict], ids: set[str]) -> None:
     for posting in postings:
         if posting["id"] in ids:
             posting["scored"] = True
+
+
+def mark_packeted(postings: list[dict], ids: set) -> None:
+    for posting in postings:
+        if posting["id"] in ids:
+            posting["packeted"] = True
