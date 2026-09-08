@@ -21,7 +21,10 @@ not granted those. Recording that you applied is `cv-log-application`'s job.
 
 1. Read the posting from `postings.local.yaml`. If `description` is null or empty,
    stop — never tailor against a title alone.
-2. If `packeted` is already true, report the existing packet path and stop.
+2. If `packeted` is already true, find the packet by scanning `outbox/*/packet.yaml`
+   for the one whose `posting_id` matches, and report that directory. If none is
+   found, say so — the flag and the filesystem have diverged, and the user should
+   know rather than have it silently repaired.
 3. Read `claims-guardrails.md` and the experience bank via
    `git show main:master-data.md`. **The guardrails are binding**, exactly as in
    `cv-review`: they state how each claim may and may not be phrased. Never write a
@@ -30,6 +33,12 @@ not granted those. Recording that you applied is `cv-log-application`'s job.
    `git worktree add .worktrees/tailor-<posting-id> <branch>`
    Work only inside it. Never `git checkout` in the main working tree — this skill
    runs unattended and must not disturb whatever the user has open.
+   If this fails because `.worktrees/tailor-<posting-id>` already exists from an
+   earlier run whose cleanup didn't complete, remove the stale worktree
+   (`git worktree remove --force .worktrees/tailor-<posting-id>`, then
+   `git worktree prune`) and retry once. If it still fails, stop and report the
+   path — never work inside a worktree left behind by a previous run, whose
+   contents are unknown.
 5. Score the branch's `cv.tex` as `cv-review` does: **Base Quality /100** (impact 40%,
    competencies 35%, presentation 25%) and **JD Fit /100** (keyword match 40%,
    experience relevance 40%, seniority fit 20%). Keep both as the *before* scores.
@@ -94,12 +103,20 @@ not granted those. Recording that you applied is `cv-log-application`'s job.
 
 ## Permission scope
 
-This skill needs no commit rights, by design:
+This skill needs no commit rights, by design, and its writes are confined to its
+own throwaway locations:
 
 ```
-Read Write Edit(postings.local.yaml) Bash(git worktree:*) Bash(git show:*)
+Read Edit(/outbox/**) Edit(/.worktrees/**) Edit(postings.local.yaml)
+Bash(git worktree:*) Bash(git show:*)
 Bash(latexmk:*) Bash(pdflatex:*) Bash(tectonic:*)
 ```
 
 The absence of `Bash(git add:*)` and `Bash(git commit:*)` is what makes it impossible
-for an unattended run to claim an application it did not make.
+for an unattended run to claim an application it did not make. And because the
+grant scopes writes to `outbox/` and `.worktrees/` plus the one `postings.local.yaml`
+entry, it cannot touch the experience bank, the guardrails, or a branch's `cv.tex`
+outside its own worktree, no matter what the procedure above intends. These rules
+use `Edit(...)`, not `Write(...)`, because Claude Code's permission engine only
+consults path scoping on `Edit` rules — a `Write(pattern)` rule is accepted but
+silently ignored, leaving writes as unscoped as bare `Write`.
