@@ -289,3 +289,30 @@ def test_normalize_greenhouse_truncates_long_description():
     result = ats.normalize_greenhouse("Example Corp", "examplecorp", raw)
 
     assert len(result[0]["description"]) == 6000
+
+
+def test_normalize_greenhouse_unescapes_entity_escaped_content():
+    """Greenhouse returns `content` entity-escaped, so the markup must not
+    survive into the description as visible text."""
+    raw = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "Backend Engineer",
+                "absolute_url": "https://example.com/1",
+                "location": {"name": "Remote"},
+                "updated_at": "2026-09-04T14:12:20-04:00",
+                "content": (
+                    "&lt;h2&gt;Who we are&lt;/h2&gt;"
+                    "&lt;p&gt;Build APIs in &lt;strong&gt;Python&lt;/strong&gt;.&lt;/p&gt;"
+                ),
+            }
+        ]
+    }
+
+    description = ats.normalize_greenhouse("Example", "example", raw)[0]["description"]
+
+    assert "<" not in description
+    assert ">" not in description
+    assert "Who we are" in description
+    assert "Python" in description

@@ -5,7 +5,13 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 
+from html import unescape
+
 from job_fetcher.htmltext import description_from_html, description_from_plain
+
+
+def _unescaped(html_text):
+    return unescape(html_text) if html_text else html_text
 
 
 def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
@@ -25,7 +31,11 @@ def normalize_greenhouse(company_name: str, slug: str, raw: dict) -> list[dict]:
                 "url": job["absolute_url"],
                 "location": (job.get("location") or {}).get("name", "Unknown"),
                 "posted_date": job.get("updated_at", "")[:10],
-                "description": description_from_html(job.get("content")),
+                # Greenhouse returns `content` HTML-entity-escaped ("&lt;p&gt;..."),
+                # so it must be unescaped before stripping or the markup itself
+                # survives as visible text. unescape() is a no-op on the
+                # already-unescaped form, so this is safe either way.
+                "description": description_from_html(_unescaped(job.get("content"))),
             }
         )
     return postings

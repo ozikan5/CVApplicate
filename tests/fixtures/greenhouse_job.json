@@ -3,7 +3,9 @@
   "title": "Abuse Investigator",
   "absolute_url": "https://stripe.com/jobs/search?gh_jid=8172508",
   "company_name": "Stripe",
-  "location": {"name": "Dublin"},
+  "location": {
+    "name": "Dublin"
+  },
   "updated_at": "2026-09-04T14:12:20-04:00",
-  "content": "<p>Investigate abuse. Python and SQL required.</p>"
+  "content": "&lt;p&gt;Investigate abuse. Python and SQL required.&lt;/p&gt;"
 }
