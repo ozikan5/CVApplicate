@@ -225,3 +225,50 @@ def test_split_sentences_protects_multiple_abbreviations_by_length():
     sentences = profile._split_sentences(text)
 
     assert sentences == [text]
+
+
+def test_authorization_disqualifies_despite_eeo_clause_with_place_name():
+    """Regression test for the false-negative finding: the unanchored
+    abbreviation alternation matched 'co.' as a substring of 'Morocco.',
+    merging the EEO sentence with the following citizenship-requirement
+    sentence. Because the merged sentence contained 'equal opportunity', the
+    non-discrimination discard swallowed the whole thing and a posting that
+    plainly requires US citizenship was wrongly accepted as OK."""
+    text = (
+        "We are an equal opportunity employer with an office in Morocco. "
+        "U.S. citizenship is required for this cleared role."
+    )
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_split_sentences_does_not_merge_on_word_ending_in_abbreviation_letters():
+    """'Morocco.' ends in the letters of the 'Co.' abbreviation, but it is not
+    an abbreviation token and must not suppress the sentence boundary after
+    it."""
+    text = "He previously worked in Morocco. Citizenship is required."
+
+    sentences = profile._split_sentences(text)
+
+    assert sentences == [
+        "He previously worked in Morocco.",
+        "Citizenship is required.",
+    ]
+
+
+def test_split_sentences_still_protects_real_abbreviations_after_anchoring():
+    """The word-boundary anchor must not undo the original abbreviation
+    protection: genuine 'e.g.' and 'U.S.A.' tokens still keep their periods
+    and do not split the sentence, while the real sentence boundary after
+    'team.' still splits."""
+    text = "Send to e.g. the U.S.A. team. Citizenship is required."
+
+    sentences = profile._split_sentences(text)
+
+    assert sentences == [
+        "Send to e.g. the U.S.A. team.",
+        "Citizenship is required.",
+    ]

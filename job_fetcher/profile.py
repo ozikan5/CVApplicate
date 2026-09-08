@@ -65,7 +65,7 @@ _ABBREVIATIONS = (
     "Dr.", "Mr.", "Mrs.", "Ms.",
 )
 _ABBREVIATION_RE = re.compile(
-    "|".join(re.escape(a) for a in sorted(_ABBREVIATIONS, key=len, reverse=True)),
+    r"\b(?:" + "|".join(re.escape(a) for a in sorted(_ABBREVIATIONS, key=len, reverse=True)) + ")",
     re.IGNORECASE,
 )
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?;])\s+")
