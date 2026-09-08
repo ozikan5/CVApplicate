@@ -355,8 +355,10 @@ holding nothing but those would be scope without a purpose.
 `job_fetcher/profile.py`:
 - config loading with defaults and a missing-file error message matching
   `config.py`'s style
-- each gate rule in isolation: years-of-experience above the cap, a full-time role
-  when seeking an internship, an unmatched location
+- `location_matches`: a listed location, an unlisted one, an empty allow-list, and
+  missing location text (which must match, since an unstated location is ambiguous)
+- the years-of-experience cap and whether a role is genuinely an internship are model
+  judgment, not pattern matching — the spec states the rule, the skill applies it
 - **the ambiguity rule**: "or equivalent experience" and an unstated location must
   come back eligible, not ineligible
 - **work authorization, both directions.** Under `cpt-opt`: "must be a US citizen" and
