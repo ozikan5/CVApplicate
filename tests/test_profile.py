@@ -165,3 +165,63 @@ def test_location_matches_treats_missing_location_text_as_a_match():
     """An unstated location is ambiguous, and the gate errs toward eligible."""
     assert profile.location_matches(None, ["United States"])
     assert profile.location_matches("", ["United States"])
+
+
+def test_authorization_survives_an_abbreviation_inside_eeo_language():
+    """Regression test for the sentence-splitter finding: 'e.g.' used to split
+    the EEO sentence in two, separating 'regardless of' from 'citizenship' so
+    the non-discrimination exclusion never fired and the posting was wrongly
+    flagged as ambiguous."""
+    text = (
+        "We consider applicants regardless of race, e.g. all backgrounds, "
+        "and citizenship, in line with EEO law."
+    )
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.OK
+    assert reason is None
+
+
+def test_authorization_still_disqualifies_across_an_abbreviation():
+    """The literal 'Acme Inc. requires U.S. citizenship for this cleared role.'
+    example from the finding does not actually match any _DISQUALIFYING
+    pattern even once split correctly (the pattern needs 'citizenship
+    required'/'citizenship is required', not 'requires ... citizenship'), so
+    it is AMBIGUOUS both before and after the fix and would not exercise the
+    regression. This uses an equivalent real-world phrasing instead: the
+    'cannot sponsor ... CPT/OPT' pattern's matched span straddles the 'Inc.'
+    abbreviation, so the old splitter broke the match into two fragments
+    (neither containing the whole phrase) and fell back to AMBIGUOUS, while
+    the fixed splitter keeps the sentence whole and disqualifies it."""
+    text = (
+        "We cannot sponsor, per Acme Inc. guidelines, candidates requiring "
+        "CPT or OPT support."
+    )
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert "CPT" in reason
+
+
+def test_authorization_disqualifies_after_a_phd_prefix():
+    """A 'Ph.D.' abbreviation earlier in the text must not prevent a later
+    citizenship requirement from being recognized."""
+    text = "Ph.D. preferred. U.S. citizenship is required for this role."
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert reason
+
+
+def test_split_sentences_protects_multiple_abbreviations_by_length():
+    """Pins the length-descending ordering: 'U.S.A.' must be protected before
+    the shorter 'U.S.' pattern can match a prefix of it and leave a stray
+    period that still splits the sentence."""
+    text = "Founded in the U.S.A. in 1999, the U.S. office is our headquarters."
+
+    sentences = profile._split_sentences(text)
+
+    assert sentences == [text]

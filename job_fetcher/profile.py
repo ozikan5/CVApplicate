@@ -59,7 +59,32 @@ OK = "ok"
 DISQUALIFIED = "disqualified"
 AMBIGUOUS = "ambiguous"
 
-_SENTENCE_SPLIT = re.compile(r"(?<!U\.S\.)(?<=[.!?;])\s+")
+_ABBREVIATIONS = (
+    "U.S.A.", "U.S.", "e.g.", "i.e.", "Ph.D.", "B.S.", "M.S.", "B.Sc.", "M.Sc.",
+    "Inc.", "Ltd.", "Co.", "Corp.", "St.", "No.", "etc.", "vs.", "approx.",
+    "Dr.", "Mr.", "Mrs.", "Ms.",
+)
+_ABBREVIATION_RE = re.compile(
+    "|".join(re.escape(a) for a in sorted(_ABBREVIATIONS, key=len, reverse=True)),
+    re.IGNORECASE,
+)
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?;])\s+")
+_SENTINEL = "\x00"
+
+
+def _split_sentences(text: str) -> list:
+    """Split into sentences without breaking on common abbreviations.
+
+    The abbreviation list is protected by substituting a sentinel for its periods
+    before splitting and restoring them afterwards. Sorting by length descending
+    matters: "U.S.A." must be protected before "U.S." can match its prefix.
+    """
+    protected = _ABBREVIATION_RE.sub(
+        lambda m: m.group(0).replace(".", _SENTINEL), text
+    )
+    return [
+        part.replace(_SENTINEL, ".") for part in _SENTENCE_BOUNDARY.split(protected)
+    ]
 
 # A match inside any of these is a non-discrimination statement, which is the
 # opposite of a requirement. Discard the whole sentence.
@@ -110,7 +135,7 @@ def authorization_verdict(jd_text: str, mode):
         return OK, None
 
     unclear_reason = None
-    for sentence in _SENTENCE_SPLIT.split(jd_text):
+    for sentence in _split_sentences(jd_text):
         if _NON_DISCRIMINATION.search(sentence):
             continue
         for pattern, reason in _DISQUALIFYING:
