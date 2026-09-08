@@ -62,9 +62,9 @@ Copied from `profile.example.yaml`, gitignored like every other `*.local.yaml`:
 ```yaml
 seeking: internship          # internship | new-grad | full-time
 graduation: 2028-06
-locations: ["United States", "Remote (US)", "Turkey"]
-work_authorization: ["US", "TR"]
+locations: ["United States", "Remote (US)"]
 max_years_experience_required: 1
+work_authorization: cpt-opt  # cpt-opt | citizen-or-pr | unrestricted; omit to disable
 ```
 
 ### Gate rules
@@ -74,8 +74,8 @@ A posting is **ineligible** when any of these holds. Each records a reason strin
 - the JD states a minimum years-of-experience above `max_years_experience_required`
 - `seeking` is `internship` and the JD is plainly a full-time non-internship role
 - no stated location matches `locations`
-- the JD names a work authorization or citizenship requirement not in
-  `work_authorization`
+- the JD names a work-authorization requirement the `work_authorization` value cannot
+  satisfy (see below)
 
 Ineligible postings are recorded in `matches.local.yaml` with `eligible: false` and a
 `reasons` list, **no score fields**, and are marked `scored: true` so they are not
@@ -83,6 +83,36 @@ reprocessed. Judgment calls stay soft: when a requirement is ambiguous ("or equi
 experience", an unstated location), the posting is treated as eligible and scored, and
 the ambiguity is noted in the rationale. The gate exists to exclude the clear-cut
 cases, not to guess.
+
+### Work authorization, precisely
+
+`work_authorization: cpt-opt` describes a student working on school-authorized
+practical training. The naive implementation — disqualify anything containing
+"sponsorship" — would be wrong and would silently discard a large share of open
+internships, because **an F-1 student on CPT is already authorized to work for an
+internship without employer sponsorship**. CPT is authorized by the school, not the
+employer.
+
+Disqualifying under `cpt-opt`:
+
+- "must be a US citizen", "US citizenship required" (common for defense, government
+  and cleared work)
+- "US citizen or permanent resident only"
+- "we do not hire candidates on CPT or OPT", "cannot accept CPT/OPT"
+- an explicitly stated security clearance requirement
+
+**Not** disqualifying under `cpt-opt`, and this is the load-bearing half of the rule:
+
+- "must be authorized to work in the US without sponsorship" — CPT satisfies this for
+  an internship
+- "we are unable to provide visa sponsorship" — likewise, for an internship; it speaks
+  to H-1B sponsorship, not practical training
+- any mention of sponsorship with no stated restriction on CPT/OPT or citizenship
+
+`citizen-or-pr` disqualifies nothing on authorization grounds. `unrestricted` and an
+omitted key both disable the rule. When the phrasing does not clearly fall into the
+disqualifying list, the ambiguity rule applies: the posting stays eligible and the
+wording is noted.
 
 **A queued URL bypasses nothing.** The gate applies to queued postings too, but an
 ineligible queued posting is reported to you with its reasons rather than silently
@@ -278,9 +308,14 @@ holding nothing but those would be scope without a purpose.
 - config loading with defaults and a missing-file error message matching
   `config.py`'s style
 - each gate rule in isolation: years-of-experience above the cap, a full-time role
-  when seeking an internship, an unmatched location, an unmatched work authorization
+  when seeking an internship, an unmatched location
 - **the ambiguity rule**: "or equivalent experience" and an unstated location must
   come back eligible, not ineligible
+- **work authorization, both directions.** Under `cpt-opt`: "must be a US citizen" and
+  "we do not hire on CPT or OPT" are ineligible; "must be authorized to work without
+  sponsorship" and "unable to provide visa sponsorship" are **eligible**. The second
+  pair is the regression test that matters — a rule keyed on the word "sponsorship"
+  passes the first pair and silently discards most open internships.
 - the NVIDIA posting as a fixture, asserted ineligible with all three reasons — the
   regression test for the defect that motivated the gate
 
