@@ -114,21 +114,42 @@ def _redact_non_discrimination_markers(sentence: str) -> str:
 # same as "not able to" / "cannot" / "unable to" in either frame.
 _SPONSOR_MODAL = r"(?:not able to|cannot|can't|unable to|do(?:es)?\s+not)"
 
+# Two-tier window for the "cannot sponsor ... CPT/OPT" pattern.
+#
+# Close proximity (the modal and the CPT/OPT mention in one breath) is a
+# genuine single statement and is safe to reject outright. But
+# description_from_html (job_fetcher/htmltext.py) collapses ALL whitespace
+# and leaves <li> bullets with no terminal punctuation, so several unrelated
+# bullets can merge into one pseudo-sentence -- a wide gap may just as
+# easily span two unrelated bullets (an unrelated "cannot sponsor visas"
+# bullet plus a separate, genuinely permissive "OPT welcome" bullet) as it
+# may span one real statement. A false rejection there is invisible to the
+# user, while treating it as merely AMBIGUOUS costs one score and lets the
+# scoring skill adjudicate the quoted sentence itself, defaulting to
+# eligible. So: close -> DISQUALIFIED, wide -> AMBIGUOUS. Do not fold this
+# back into a single DISQUALIFIED window.
+#
+# _SPONSOR_CLOSE_WINDOW is chosen from measurement, not taste: the real
+# captured fixture ("...not able to sponsor visas, including CPT/OPT...")
+# has an actual sponsor->CPT gap of 18 characters. 25 gives that fixture a
+# small margin (+7) while sitting comfortably below the reviewer's
+# real-world false-rejection case (a 33-character gap between an unrelated
+# "cannot sponsor" bullet and a permissive "OPT welcome" bullet), which must
+# now land in the wide/AMBIGUOUS tier rather than DISQUALIFIED.
+#
+# _SPONSOR_WIDE_WINDOW keeps the prior single-tier bound of 55: beyond that,
+# the pattern simply does not fire and the _UNCLEAR fallback below still
+# escalates any bare CPT/OPT mention to AMBIGUOUS, so there is no gap in
+# coverage from leaving it here.
+_SPONSOR_CLOSE_WINDOW = 25
+_SPONSOR_WIDE_WINDOW = 55
+
+_SPONSOR_CPT = re.compile(
+    _SPONSOR_MODAL + r"\s+sponsor([^;]{0,%d})\b(CPT|OPT)\b" % _SPONSOR_WIDE_WINDOW,
+    re.I,
+)
+
 _DISQUALIFYING = (
-    (
-        # Window reduced from 90 to 55. The real fixture
-        # ("...not able to sponsor visas, including CPT/OPT...") needs only
-        # 18 chars between "sponsor" and "CPT"/"OPT"; the existing
-        # test_authorization_still_disqualifies_across_an_abbreviation
-        # fixture (a parenthetical "per Acme Inc. guidelines," aside) needs
-        # 49, which sets the floor here since that test must keep passing
-        # unmodified. 55 leaves a small margin above that floor while still
-        # being far short of 90, so it can no longer span two merged <li>
-        # bullets from htmltext.description_from_html separated by ~90+
-        # characters of unrelated bullet text.
-        re.compile(_SPONSOR_MODAL + r"\s+sponsor[^;]{0,55}\b(CPT|OPT)\b", re.I),
-        "employer states it cannot sponsor CPT/OPT",
-    ),
     (
         re.compile(_SPONSOR_MODAL + r"\s+(hire|accept|employ)[^;]{0,60}\b(CPT|OPT)\b", re.I),
         "employer does not accept CPT/OPT",
@@ -187,6 +208,22 @@ def authorization_verdict(jd_text: str, mode):
         for pattern, reason in _DISQUALIFYING:
             if pattern.search(scan_text):
                 return DISQUALIFIED, reason
+
+        # Two-tier sponsor/CPT-OPT check (see _SPONSOR_CLOSE_WINDOW above):
+        # close proximity disqualifies outright, wide proximity only
+        # escalates to AMBIGUOUS, carrying the quoted sentence for the
+        # scoring skill to adjudicate.
+        sponsor_match = _SPONSOR_CPT.search(scan_text)
+        if sponsor_match:
+            gap = len(sponsor_match.group(1))
+            if gap <= _SPONSOR_CLOSE_WINDOW:
+                return DISQUALIFIED, "employer states it cannot sponsor CPT/OPT"
+            if unclear_reason is None:
+                unclear_reason = (
+                    "employer's 'cannot sponsor' language and a CPT/OPT mention "
+                    "are far enough apart that they may belong to two different, "
+                    "merged bullets: " + " ".join(sentence.split())[:160]
+                )
 
         # A non-discrimination marker anywhere in the sentence suppresses the
         # AMBIGUOUS fallback for it too: real EEO boilerplate ("regardless of

@@ -183,26 +183,44 @@ def test_authorization_survives_an_abbreviation_inside_eeo_language():
     assert reason is None
 
 
-def test_authorization_still_disqualifies_across_an_abbreviation():
-    """The literal 'Acme Inc. requires U.S. citizenship for this cleared role.'
-    example from the finding does not actually match any _DISQUALIFYING
-    pattern even once split correctly (the pattern needs 'citizenship
-    required'/'citizenship is required', not 'requires ... citizenship'), so
-    it is AMBIGUOUS both before and after the fix and would not exercise the
-    regression. This uses an equivalent real-world phrasing instead: the
-    'cannot sponsor ... CPT/OPT' pattern's matched span straddles the 'Inc.'
-    abbreviation, so the old splitter broke the match into two fragments
-    (neither containing the whole phrase) and fell back to AMBIGUOUS, while
-    the fixed splitter keeps the sentence whole and disqualifies it."""
+def test_authorization_escalates_across_an_abbreviation_in_the_wide_tier():
+    """Formerly test_authorization_still_disqualifies_across_an_abbreviation.
+
+    The literal 'Acme Inc. requires U.S. citizenship for this cleared role.'
+    example from the original finding does not actually match any
+    _DISQUALIFYING pattern even once split correctly (the pattern needs
+    'citizenship required'/'citizenship is required', not 'requires ...
+    citizenship'), so it is AMBIGUOUS both before and after that fix and
+    would not exercise the regression. This uses an equivalent real-world
+    phrasing instead: the 'cannot sponsor ... CPT/OPT' pattern's matched span
+    straddles the 'Inc.' abbreviation, so a splitter that breaks on 'Inc.'
+    would fragment the match (neither fragment containing the whole phrase)
+    and fall back to AMBIGUOUS for the wrong reason, while a splitter that
+    keeps the sentence whole lets the sponsor/CPT-OPT pattern actually see
+    the full gap.
+
+    That gap is ~49 characters ("Acme Inc. guidelines, candidates
+    requiring") -- past the close-proximity window (see
+    test_authorization_disqualifies_just_inside_the_close_sponsor_window and
+    its "just outside" sibling), so under the two-tier rule this now
+    resolves to AMBIGUOUS rather than DISQUALIFIED: the sentence-splitter
+    behavior this test was written to pin (not breaking on 'Inc.') is
+    already covered directly by the _split_sentences tests in this file
+    (e.g. test_split_sentences_protects_multiple_abbreviations_by_length),
+    so downgrading this assertion does not leave abbreviation protection
+    under-tested -- it only removes a duplicate, indirect check of the same
+    behavior at the verdict level."""
     text = (
         "We cannot sponsor, per Acme Inc. guidelines, candidates requiring "
         "CPT or OPT support."
     )
+    gap = text.index("CPT") - (text.lower().index("sponsor") + len("sponsor"))
+    assert gap == 49
 
     verdict, reason = profile.authorization_verdict(text, "cpt-opt")
 
-    assert verdict == profile.DISQUALIFIED
-    assert "CPT" in reason
+    assert verdict == profile.AMBIGUOUS
+    assert reason
 
 
 def test_authorization_disqualifies_after_a_phd_prefix():
@@ -473,4 +491,77 @@ def test_authorization_escalates_an_obtain_clearance_phrasing_not_in_pattern():
     verdict, reason = profile.authorization_verdict(text, "cpt-opt")
 
     assert verdict != profile.OK
+    assert reason
+
+
+# --- Two-tier sponsor/CPT-OPT window ----------------------------------------
+#
+# Close proximity ("not able to sponsor ... CPT/OPT" in one breath) is a
+# genuine single statement and stays DISQUALIFIED. Wider proximity is
+# downgraded to AMBIGUOUS: description_from_html collapses <li> bullets with
+# no terminal punctuation, so a wide gap may just as easily span two
+# unrelated merged bullets, and a false rejection is invisible to the user
+# while a false AMBIGUOUS only costs one score.
+
+
+def test_authorization_escalates_the_reviewer_false_rejection_case():
+    """Reproduces the reviewer's real false-rejection: an unrelated 'not able
+    to sponsor' bullet merged (via HTML-block collapsing) with a separate,
+    genuinely permissive 'Interns on OPT welcome' bullet. The 33-character
+    gap between them is well past the close window, so this must no longer
+    be DISQUALIFIED."""
+    text = "Not able to sponsor " + ("x" * 20) + " Interns on OPT welcome"
+
+    gap = text.index("OPT") - (text.lower().index("sponsor") + len("sponsor"))
+    assert gap == 33  # comment-cited as "32" in the finding; assert the real value
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.AMBIGUOUS
+    assert reason
+
+
+def test_authorization_disqualifies_the_real_captured_sponsor_fixture():
+    """Pins the close window against the real captured fixture: 'Unfortunately,
+    we are not able to sponsor visas, including CPT/OPT or employ
+    corp-to-corp.' The measured sponsor->CPT gap is 18 characters, which must
+    stay comfortably inside the close-proximity tier."""
+    gap = CANNOT_SPONSOR_CPT.index("CPT") - (
+        CANNOT_SPONSOR_CPT.lower().index("sponsor") + len("sponsor")
+    )
+    assert gap == 18
+
+    verdict, reason = profile.authorization_verdict(CANNOT_SPONSOR_CPT, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert "CPT" in reason
+
+
+def test_authorization_disqualifies_just_inside_the_close_sponsor_window():
+    """A gap of exactly profile._SPONSOR_CLOSE_WINDOW characters is still
+    close proximity and must stay DISQUALIFIED."""
+    n = profile._SPONSOR_CLOSE_WINDOW
+    text = "We are not able to sponsor" + ("x" * (n - 1)) + " CPT support."
+
+    gap = text.index("CPT") - (text.index("sponsor") + len("sponsor"))
+    assert gap == n
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.DISQUALIFIED
+    assert "CPT" in reason
+
+
+def test_authorization_escalates_just_outside_the_close_sponsor_window():
+    """One character past profile._SPONSOR_CLOSE_WINDOW crosses into the wide
+    tier and must escalate to AMBIGUOUS instead of DISQUALIFIED."""
+    n = profile._SPONSOR_CLOSE_WINDOW + 1
+    text = "We are not able to sponsor" + ("x" * (n - 1)) + " CPT support."
+
+    gap = text.index("CPT") - (text.index("sponsor") + len("sponsor"))
+    assert gap == n
+
+    verdict, reason = profile.authorization_verdict(text, "cpt-opt")
+
+    assert verdict == profile.AMBIGUOUS
     assert reason
