@@ -367,10 +367,11 @@ data repo. The skills commit changes to them there and then return to your indus
 branch, so your experience bank and application history stay unified however many
 branches you have. Only `cv.tex` diverges per branch.
 
-`master-data.md` is **not tracked on industry branches at all** — `cv-new-industry`
-removes the inherited copy when it creates a branch, and every skill that needs the
-experience bank reads it with `git show main:master-data.md` rather than as a path. This
-is deliberate. A tracked copy on each branch drifts behind `main` as your experience
+`master-data.md` and `applications/log.yaml` are **not tracked on industry branches at
+all** — `cv-new-industry` removes the inherited copies when it creates a branch, and
+every skill that needs the experience bank reads it with `git show main:master-data.md`
+rather than as a path. The skills that touch the application log check out `main` first,
+so they read it as a path there. This is deliberate. A tracked copy on each branch drifts behind `main` as your experience
 grows, and a skill reading the branch copy would silently tailor and score against a
 stale bank while appearing to work — in one real repo the branch copies were 185 lines
 behind, hiding two entire projects from every `cv-review` run. Keeping one copy makes

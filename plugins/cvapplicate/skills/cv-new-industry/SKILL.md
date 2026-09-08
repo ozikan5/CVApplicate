@@ -36,13 +36,13 @@ before proceeding.
      report that compilation was not verified, so no PDF was produced.
    - If found, compile `cv.tex`. On failure, fix the LaTeX error before continuing —
      do not commit broken LaTeX.
-8. Remove the inherited copy of the experience bank from this branch and commit both
-   changes together:
-   `git rm --quiet master-data.md && git add cv.tex && git commit -m "Adapt CV for <industry>"`
-   `master-data.md` is authoritative on `main` only. A copy left on the branch drifts
-   behind `main` as your experience grows, and any skill that read it as a path would
-   silently score and write from stale content — so every industry branch is kept
-   without it by construction.
+8. Remove the inherited copies of the shared data files from this branch and commit
+   everything together:
+   `git rm --quiet master-data.md applications/log.yaml && git add cv.tex && git commit -m "Adapt CV for <industry>"`
+   Both are authoritative on `main` only. A copy left on the branch drifts behind `main`
+   as your experience and application history grow, and any skill that read one as a
+   path would silently score and write from stale content — so every industry branch is
+   kept without them by construction. Only `cv.tex` diverges per branch.
 9. Rename the compiled PDF to `First_Last_CV_Industry.pdf` before delivering it —
     First/Last from the name in `cv.tex`'s header (or the Contact section of
     `git show main:master-data.md`), Industry the single-word `<industry>` slug from this run (e.g.
