@@ -49,3 +49,6 @@ __pycache__/
 profile.local.yaml
 queue.local.txt
 outbox/
+
+# Throwaway worktrees used by cv-tailor-packet
+.worktrees/
