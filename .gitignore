@@ -46,3 +46,6 @@ __pycache__/
 .claude/worktrees/
 .venv/
 .venv39/
+profile.local.yaml
+queue.local.txt
+outbox/

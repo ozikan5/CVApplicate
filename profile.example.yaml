@@ -1,0 +1,27 @@
+# Copy to profile.local.yaml (gitignored) and edit.
+# Used to reject postings you cannot accept before any tailoring is spent on them.
+
+# What you are looking for: internship | new-grad | full-time
+seeking: internship
+
+# Graduation, YYYY-MM. Used as context when judging seniority language.
+graduation: 2028-06
+
+# Acceptable locations, matched loosely against the posting's location text.
+# An empty list disables the location rule.
+locations:
+  - "United States"
+  - "Remote (US)"
+
+# Reject postings demanding more prior experience than this, in years.
+# Omit or set to null to disable.
+max_years_experience_required: 1
+
+# cpt-opt        — F-1 student on practical training. Rejects citizens-only roles
+#                  and employers that explicitly refuse CPT/OPT. Does NOT reject
+#                  "no visa sponsorship", which CPT already satisfies for an
+#                  internship.
+# citizen-or-pr  — nothing is rejected on authorization grounds.
+# unrestricted   — same, stated explicitly.
+# Omit the key entirely to disable the rule.
+work_authorization: cpt-opt
