@@ -1,6 +1,6 @@
 ---
 name: cv-log-outcome
-description: Record the outcome of a job application (interview, offer, rejection, no response) in the application log. Use when the user reports hearing back from a company they applied to.
+description: Record the outcome of a job application (assessment, interview, offer, rejection, no response) in the application log. Use when the user reports hearing back from a company they applied to.
 ---
 
 # CV Log Outcome
@@ -12,9 +12,11 @@ application.
 
 1. **Company and/or role** — used to find the matching entry. If omitted, use the
    most recently added entry (last item in the list).
-2. **Outcome** — one of: `interview`, `rejected`, `offer`, `no_response`. If the user
-   describes it in other words (e.g. "got an OA", "ghosted"), map it to the closest
-   of these four and confirm with the user if it's not obvious.
+2. **Outcome** — one of: `assessment`, `interview`, `rejected`, `offer`,
+   `no_response`. An online assessment or coding challenge ("got an OA",
+   "HackerRank invite") is `assessment`, not `interview`. If the user describes the
+   outcome in other words (e.g. "ghosted"), map it to the closest of these five and
+   confirm with the user if it's not obvious.
 
 ## Procedure
 
