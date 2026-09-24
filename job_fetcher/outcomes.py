@@ -5,7 +5,9 @@ Nothing here touches the network or the mailbox; job_fetcher.mailbox does that.
 
 from __future__ import annotations
 
+import os
 import re
+import yaml
 
 ATS_DOMAINS = (
     "greenhouse.io", "greenhouse-mail.io", "lever.co", "myworkday.com",
@@ -56,3 +58,54 @@ def is_candidate(message: dict, applications: list) -> bool:
     if _domain_in(domain, ATS_DOMAINS) or _domain_in(domain, ASSESSMENT_DOMAINS):
         return True
     return bool(candidate_applications(message, applications))
+
+
+STAGES = ("pending", "assessment", "interview", "offer")
+PROPOSABLE = ("assessment", "interview", "offer", "rejected")
+
+
+def regresses(current: str, proposed: str) -> bool:
+    """True when applying `proposed` would move an application backward.
+
+    Stages only move forward. `rejected` may follow any stage. A positive stage
+    after `rejected` needs a human. `no_response` may be followed by anything,
+    since a late reply is progress.
+    """
+    if proposed == current:
+        return False
+    if proposed == "rejected":
+        return False
+    if current == "rejected":
+        return True
+    if current in STAGES and proposed in STAGES:
+        return STAGES.index(proposed) < STAGES.index(current)
+    return False
+
+
+def default_answer(proposal: dict, current: str) -> bool:
+    """Yes only for a high-confidence, single-application, forward proposal.
+
+    Anything else defaults to no, so it can never be accepted just by pressing
+    through the list.
+    """
+    return (
+        proposal.get("confidence") == "high"
+        and proposal.get("application_id") is not None
+        and not regresses(current, proposal.get("proposed_outcome", ""))
+    )
+
+
+def load_pending(path: str) -> dict:
+    if not os.path.exists(path):
+        return {"seen": [], "proposals": []}
+    with open(path, "r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle)
+    if data is None:
+        return {"seen": [], "proposals": []}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must be a mapping with 'seen' and 'proposals' keys")
+    return {"seen": list(data.get("seen") or []), "proposals": list(data.get("proposals") or [])}
+
+
+def seen_ids(pending: dict) -> set:
+    return set(pending.get("seen") or [])
