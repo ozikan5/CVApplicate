@@ -260,3 +260,75 @@ def test_remember_allows_a_phone_number_answer(tmp_path):
     path = _write(tmp_path, "learned: []\n")
     entry = answers.remember(path, "Best contact number?", "555-123-4567", TODAY)
     assert entry["answer"] == "555-123-4567"
+
+
+# --- Security fix: unquoted numbers and new separators ------------------
+
+def test_load_rejects_unquoted_card_number_int(tmp_path):
+    """Unquoted YAML number 4111111111111111 loads as int, must be rejected."""
+    path = _write(tmp_path, "payment:\n  reference: 4111111111111111\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "4111111111111111" not in str(caught.value)
+    assert "reference" in str(caught.value)
+
+
+def test_load_rejects_unquoted_9digit_number_int(tmp_path):
+    """Unquoted YAML number 123456789 loads as int, must be rejected."""
+    path = _write(tmp_path, "applicant:\n  id: 123456789\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "123456789" not in str(caught.value)
+    assert "id" in str(caught.value)
+
+
+def test_load_allows_boolean_true(tmp_path):
+    """enabled: true (boolean) loads fine."""
+    path = _write(tmp_path, "preferences:\n  enabled: true\n")
+    data = answers.load_answers(path)
+    assert data["preferences"]["enabled"] is True
+
+
+def test_load_allows_zip_code_as_int(tmp_path):
+    """ZIP code as int 60601 loads fine."""
+    path = _write(tmp_path, "address:\n  zip: 60601\n")
+    data = answers.load_answers(path)
+    assert data["address"]["zip"] == 60601
+
+
+def test_load_allows_gpa_float(tmp_path):
+    """GPA float 3.8 loads fine."""
+    path = _write(tmp_path, "education:\n  gpa: 3.8\n")
+    data = answers.load_answers(path)
+    assert data["education"]["gpa"] == 3.8
+
+
+@pytest.mark.parametrize("key", [
+    "acct_number", "acctNo", "accountNo", "sortCode",
+])
+def test_load_rejects_account_related_keys(tmp_path, key):
+    """Account-related keys with separator-stripped roots are forbidden."""
+    path = _write(tmp_path, f"banking:\n  {key}: secret123\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "secret123" not in str(caught.value)
+    assert key in str(caught.value)
+
+
+@pytest.mark.parametrize("key", [
+    "accountability_statement", "bankruptcy_question",
+])
+def test_load_allows_false_positive_lookalikes(tmp_path, key):
+    """accountability_statement and bankruptcy_question pass without issue."""
+    path = _write(tmp_path, f"essay:\n  {key}: some text\n")
+    data = answers.load_answers(path)
+    assert data["essay"][key] == "some text"
+
+
+def test_load_rejects_ssn_with_dot_separators(tmp_path):
+    """SSN value check accepts dots as separators, e.g. 123.45.6789."""
+    path = _write(tmp_path, "person:\n  identifier: '123.45.6789'\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "123.45.6789" not in str(caught.value)
+    assert "identifier" in str(caught.value)

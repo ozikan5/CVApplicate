@@ -42,6 +42,7 @@ FORBIDDEN_SUBSTRINGS = (
     "birthdate", "nationalid",
     "creditcard", "debitcard", "cardnumber", "bankaccount", "accountnumber",
     "routingnumber", "iban", "cvv",
+    "acctnumber", "acctno", "accountno", "sortcode",
 )
 
 
@@ -92,7 +93,7 @@ def _luhn_valid(digits: str) -> bool:
 
 def _looks_like_ssn(value: str) -> bool:
     stripped = value.replace(" ", "")
-    return re.fullmatch(r"\d{3}-?\d{2}-?\d{4}", stripped) is not None
+    return re.fullmatch(r"\d{3}[-.]?\d{2}[-.]?\d{4}", stripped) is not None
 
 
 def _looks_like_card(value: str) -> bool:
@@ -103,9 +104,16 @@ def _looks_like_card(value: str) -> bool:
 
 
 def value_looks_forbidden(value) -> bool:
-    if not isinstance(value, str):
+    if isinstance(value, bool):
+        # bool subclasses int, so check it first and exclude it
         return False
-    return _looks_like_ssn(value) or _looks_like_card(value)
+    if isinstance(value, str):
+        return _looks_like_ssn(value) or _looks_like_card(value)
+    if isinstance(value, int):
+        # Check int values via str() but skip float
+        return _looks_like_ssn(str(value)) or _looks_like_card(str(value))
+    # float and other types: skip check
+    return False
 
 
 def forbidden_values(data, prefix: str = "") -> list:
@@ -113,7 +121,7 @@ def forbidden_values(data, prefix: str = "") -> list:
     if isinstance(data, dict):
         for key, value in data.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if isinstance(value, str):
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
                 if value_looks_forbidden(value):
                     found.append(path)
             else:
@@ -121,7 +129,7 @@ def forbidden_values(data, prefix: str = "") -> list:
     elif isinstance(data, list):
         for index, item in enumerate(data):
             path = f"{prefix}[{index}]"
-            if isinstance(item, str):
+            if isinstance(item, (str, int)) and not isinstance(item, bool):
                 if value_looks_forbidden(item):
                     found.append(path)
             else:
