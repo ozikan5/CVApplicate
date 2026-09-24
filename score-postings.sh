@@ -9,9 +9,15 @@
 # on PATH — if `which claude` differs between your interactive shell and this
 # script's launchd environment, update the ProgramArguments path in the plist,
 # the same PATH mismatch documented for fetch-postings.py's python3.
+#
+# No --permission-mode is set: in -p mode a tool call not matched by
+# --allowedTools is denied without prompting, so the scoped Edit(...) grant
+# above is what actually limits writes. --disallowedTools is a backstop on
+# top of that (deny rules win in every permission mode) blocking edits to the
+# project's own code and config.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 claude -p "Run cv-score-postings" \
-  --permission-mode acceptEdits \
-  --allowedTools "Read Edit(matches.local.yaml) Edit(postings.local.yaml) Bash(git show:*) Bash(git for-each-ref:*) Bash(python3 pipeline.py:*)"
+  --allowedTools "Read Edit(matches.local.yaml) Edit(postings.local.yaml) Bash(git show:*) Bash(git for-each-ref:*) Bash(python3 pipeline.py:*)" \
+  --disallowedTools "Edit(/pipeline.py) Edit(/resolve-posting.py) Edit(/job_fetcher/**) Edit(/applications/**) Edit(/plugins/**) Edit(/.claude/**) Edit(/.env) Edit(/*.sh)"
