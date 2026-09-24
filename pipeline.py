@@ -463,6 +463,10 @@ def remember_mode() -> int:
     except AnswersError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
+    except OSError as error:
+        print(f"error: could not save {ANSWERS_PATH}: {error.strerror or error}",
+              file=sys.stderr)
+        return 2
     print(json.dumps({"remembered": entry}))
     return 0
 

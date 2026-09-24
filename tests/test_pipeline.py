@@ -1159,3 +1159,20 @@ def test_remember_into_an_invalid_answers_file_exits_2(tmp_path, monkeypatch, ca
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "hunter2-XYZ" not in captured.err
+
+
+def test_remember_reports_a_failed_write_without_a_traceback(tmp_path, monkeypatch, capsys):
+    from job_fetcher import answers as answers_module
+
+    def refuse(path, data):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(answers_module, "_write_atomically", refuse)
+
+    assert _remember(tmp_path, monkeypatch,
+                     json.dumps({"question": "Relocate?", "answer": "Yes"})) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Permission denied" in captured.err
+    assert "Traceback" not in captured.err
