@@ -402,7 +402,7 @@ def review_mode() -> int:
 
 
 PACKET_SUMMARY_FIELDS = (
-    "posting_id", "company", "role", "created", "compile", "applied", "filled",
+    "posting_id", "company", "role", "url", "created", "compile", "applied", "filled",
 )
 
 

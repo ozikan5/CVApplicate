@@ -874,6 +874,7 @@ def test_packets_lists_each_packet(tmp_path, monkeypatch, capsys):
     assert entry["slug"] == "citadel-swe-intern"
     assert entry["posting_id"] == "greenhouse-citadel-123"
     assert entry["company"] == "Citadel"
+    assert entry["url"] == "https://job-boards.greenhouse.io/citadel/jobs/123"
     assert entry["created"] == "2026-09-20"
     assert entry["applied"] is False
     assert entry["filled"] is None
@@ -1176,3 +1177,51 @@ def test_remember_reports_a_failed_write_without_a_traceback(tmp_path, monkeypat
     assert captured.out == ""
     assert "Permission denied" in captured.err
     assert "Traceback" not in captured.err
+
+
+# --- I-1: unreadable answers.local.yaml (not a YAML error) ----------------
+
+def test_fill_context_non_utf8_answers_file_exits_2(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+    (tmp_path / "answers.local.yaml").write_bytes(b"\xff\xfe\x00bad")
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err != ""
+
+
+def test_fill_context_answers_directory_exits_2(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+    (tmp_path / "answers.local.yaml").mkdir()
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err != ""
+
+
+def test_remember_non_utf8_answers_file_exits_2(tmp_path, monkeypatch, capsys):
+    (tmp_path / "answers.local.yaml").write_bytes(b"\xff\xfe\x00bad")
+
+    assert _remember(tmp_path, monkeypatch,
+                     json.dumps({"question": "Relocate?", "answer": "Yes"})) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err != ""
+
+
+def test_remember_answers_directory_exits_2(tmp_path, monkeypatch, capsys):
+    (tmp_path / "answers.local.yaml").mkdir()
+
+    assert _remember(tmp_path, monkeypatch,
+                     json.dumps({"question": "Relocate?", "answer": "Yes"})) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err != ""

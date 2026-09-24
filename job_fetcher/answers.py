@@ -22,15 +22,32 @@ import tempfile
 import yaml
 
 FORBIDDEN_TOKENS = (
-    "password", "passwd", "ssn", "passport", "bank", "card", "dob",
+    "password", "passwd", "ssn", "passport", "dob",
     "birthdate", "dateofbirth", "socialsecurity",
+    "birthday", "born", "pin", "passcode", "cvc", "tin", "itin",
 )
 FORBIDDEN_PHRASES = (
     ("social", "security"),
     ("date", "of", "birth"),
     ("birth", "date"),
     ("national", "id"),
+    ("national", "insurance"),
+    ("tax", "id"),
+    ("security", "code"),
+    ("social", "insurance"),
 )
+
+# "card" and "bank" are handled separately from FORBIDDEN_TOKENS: a bare
+# "card" token is forbidden unless it is immediately preceded by "green"
+# (so "green card" / "green_card_holder" are allowed, but "card",
+# "card_number" and "credit card" stay forbidden); a bare "bank" token is
+# forbidden only when it is the whole text, or accompanied by one of these
+# companion tokens (so "investment bank" and "bank_experience" are allowed,
+# but "bank_account" and "bank routing number" stay forbidden).
+BANK_COMPANION_TOKENS = frozenset({
+    "account", "acct", "routing", "number", "no", "details", "code",
+    "sort", "iban",
+})
 
 # Unambiguous roots checked as substrings against the separator-stripped,
 # lowercased text. These catch split words (pass-word, pass_word) and
@@ -39,7 +56,7 @@ FORBIDDEN_PHRASES = (
 # contain a short forbidden token as a substring (postcard, discard).
 FORBIDDEN_SUBSTRINGS = (
     "password", "passwd", "passport", "socialsecurity", "dateofbirth",
-    "birthdate", "nationalid",
+    "birthdate", "nationalid", "natid",
     "creditcard", "debitcard", "cardnumber", "bankaccount", "accountnumber",
     "routingnumber", "iban", "cvv",
     "acctnumber", "acctno", "accountno", "sortcode",
@@ -68,6 +85,15 @@ def names_forbidden(text) -> bool:
     tokens = _tokens(_split_camel_case(raw))
     if any(token in FORBIDDEN_TOKENS for token in tokens):
         return True
+    for index, token in enumerate(tokens):
+        if token != "card":
+            continue
+        if index > 0 and tokens[index - 1] == "green":
+            continue
+        return True
+    if "bank" in tokens:
+        if len(tokens) == 1 or any(t in BANK_COMPANION_TOKENS for t in tokens):
+            return True
     for phrase in FORBIDDEN_PHRASES:
         width = len(phrase)
         for start in range(len(tokens) - width + 1):
@@ -93,7 +119,7 @@ def _luhn_valid(digits: str) -> bool:
 
 def _looks_like_ssn(value: str) -> bool:
     stripped = value.replace(" ", "")
-    return re.fullmatch(r"\d{3}[-.]?\d{2}[-.]?\d{4}", stripped) is not None
+    return re.fullmatch(r"\d{3}([-.]?)\d{2}\1\d{4}", stripped) is not None
 
 
 def _looks_like_card(value: str) -> bool:
@@ -180,8 +206,12 @@ def load_answers(path: str):
     try:
         with open(path, "r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle)
+    except UnicodeDecodeError:
+        raise AnswersError(f"{path} is not valid UTF-8 text") from None
     except yaml.YAMLError:
         raise AnswersError(f"{path} is not valid YAML") from None
+    except OSError:
+        raise AnswersError(f"{path} could not be read") from None
     if data is None:
         data = {}
     if not isinstance(data, dict):

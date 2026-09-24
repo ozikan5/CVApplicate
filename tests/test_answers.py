@@ -332,3 +332,112 @@ def test_load_rejects_ssn_with_dot_separators(tmp_path):
         answers.load_answers(path)
     assert "123.45.6789" not in str(caught.value)
     assert "identifier" in str(caught.value)
+
+
+# --- I-1: unreadable answers file (not YAMLError) ------------------------
+
+def test_load_rejects_non_utf8_file(tmp_path):
+    path = tmp_path / "answers.local.yaml"
+    path.write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(str(path))
+    assert "not valid UTF-8" in str(caught.value)
+
+
+def test_load_rejects_a_directory_at_the_path(tmp_path):
+    path = tmp_path / "answers.local.yaml"
+    path.mkdir()
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(str(path))
+    assert "could not be read" in str(caught.value)
+
+
+# --- I-2a: ZIP+4 is not SSN-shaped ----------------------------------------
+
+@pytest.mark.parametrize("value", ["60601-1234", "60601"])
+def test_load_allows_zip_plus_four_and_plain_zip(tmp_path, value):
+    path = _write(tmp_path, f"address:\n  zip: '{value}'\n")
+    data = answers.load_answers(path)
+    assert data["address"]["zip"] == value
+
+
+@pytest.mark.parametrize("value", ["123-45-6789", "123.45.6789", "123456789"])
+def test_load_still_rejects_ssn_shapes_after_zip_plus_four_fix(tmp_path, value):
+    path = _write(tmp_path, f"person:\n  identifier: '{value}'\n")
+    with pytest.raises(answers.AnswersError):
+        answers.load_answers(path)
+
+
+# --- I-2b: "green card" and "investment bank" are not forbidden ----------
+
+@pytest.mark.parametrize("text", [
+    "Are you a U.S. citizen or green card holder?",
+    "Do you hold a green card?",
+    "green_card_holder",
+])
+def test_green_card_is_not_forbidden(text):
+    assert not answers.names_forbidden(text)
+
+
+@pytest.mark.parametrize("text", [
+    "card", "card_number", "cardNumber", "credit card",
+])
+def test_bare_card_stays_forbidden(text):
+    assert answers.names_forbidden(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Have you previously worked at an investment bank?",
+    "bank_experience",
+    "Which bank did you intern at?",
+])
+def test_investment_bank_is_not_forbidden(text):
+    assert not answers.names_forbidden(text)
+
+
+@pytest.mark.parametrize("text", [
+    "bank", "bank_account", "bankAccountNumber", "bank routing number",
+    "bank details",
+])
+def test_bare_bank_stays_forbidden(text):
+    assert answers.names_forbidden(text)
+
+
+def test_load_allows_green_card_holder_key(tmp_path):
+    path = _write(tmp_path, "work_authorization:\n  green_card_holder: 'Yes'\n")
+    data = answers.load_answers(path)
+    assert data["work_authorization"]["green_card_holder"] == "Yes"
+
+
+def test_load_allows_bank_experience_key(tmp_path):
+    path = _write(tmp_path, "essay:\n  bank_experience: 'Interned at Citadel'\n")
+    data = answers.load_answers(path)
+    assert data["essay"]["bank_experience"] == "Interned at Citadel"
+
+
+# --- M-1: DOB and ID wording -----------------------------------------------
+
+@pytest.mark.parametrize("text", [
+    "birthday", "born", "pin", "passcode", "cvc", "tin", "itin",
+    "national insurance", "tax id", "security code", "social insurance",
+    "natid", "nat_id_number",
+])
+def test_m1_new_forbidden_wording(text):
+    assert answers.names_forbidden(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Are you open to relocation?",
+    "Pinterest",
+    "pinned",
+    "tinkering",
+    "stubborn",
+    "Do you have a security clearance?",
+])
+def test_m1_new_false_positives(text):
+    assert not answers.names_forbidden(text)
+
+
+def test_answers_example_yaml_still_loads_after_m1_additions():
+    data = answers.load_answers(str(REPO_ROOT / "answers.example.yaml"))
+    assert data["learned"] == []
