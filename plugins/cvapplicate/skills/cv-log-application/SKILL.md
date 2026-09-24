@@ -19,7 +19,10 @@ tailoring a CV is not applying with it.
 1. Run `git status`. If the working tree is not clean, stop and say what is
    uncommitted.
 2. Read the packet's `packet.yaml`. If `applied` is already `true`, report the
-   existing log entry id and stop — this application is already recorded.
+   existing log entry id and stop — this application is already recorded. If
+   `filled` is set but the user has not said they submitted, confirm they actually
+   did: `cv-fill-application` only prefills the form, and a filled form is not a
+   submitted one.
 3. If `compile` is `failed` or `skipped`, warn the user that no verified PDF was
    produced and confirm they still want to record the application before continuing.
 4. `git checkout <industry_branch>` from `packet.yaml`.

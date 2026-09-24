@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into twelve skills, backed by
+weak points, and submit — this packages that loop into thirteen skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The twelve skills below
+│   └── skills/                       The thirteen skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -52,6 +52,7 @@ CVApplicate/
 | **cv-resolve-posting** | Resolves a pasted job posting URL into the tracked postings file and scores it against every industry branch |
 | **cv-tailor-packet** | Tailors the CV for one scored posting and writes a submit-ready packet to `outbox/` — never commits, never claims you applied |
 | **cv-log-application** | Records that you actually submitted a packet: commits that CV to the industry branch and appends the log entry |
+| **cv-fill-application** | Prefills an application form in your dedicated Chrome profile from a packet and your standing answers, then stops for you to review and submit |
 | **cv-check-mail** | Reads recent recruiting mail and proposes outcomes for logged applications — never changes the mailbox or the log |
 | **cv-review-outcomes** | Walks you through proposed outcomes and records the ones you confirm, in one commit |
 
@@ -68,7 +69,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the twelve skills once, available in any directory. When this repo's skills
+This installs the thirteen skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -289,6 +290,35 @@ That commits the packet's `cv.tex` to the industry branch and writes the log ent
 with the real submission date, so `git show <cv_commit>:cv.tex` recovers exactly what
 you sent — for the applications you really made, and no others.
 
+## Filling an application
+
+`cv-fill-application` opens a packet's posting in Chrome and fills the form: it
+uploads the packet's CV, answers standing questions from `answers.local.yaml`, and
+drafts free-text answers from the job description and your experience bank, within
+`claims-guardrails.md`. It stops on the review page and tells you what it drafted and
+what it left blank. **You submit.** It never clicks Submit, never signs in, never
+creates an account, and never types passwords, SSNs, passport, bank or card numbers,
+or your date of birth.
+
+One-time setup:
+
+1. Copy `answers.example.yaml` to `answers.local.yaml` and fill in what you want
+   answered automatically. Write the work-authorization answers out yourself; the
+   demographic questions default to declining.
+2. Create a Chrome profile named `CVApplicate`, install the Claude extension in it,
+   and connect it under the name `CVApplicate`.
+3. In that profile, sign in to the sites you apply through (Google, LinkedIn, each
+   company's Workday), yourself.
+
+Then:
+
+```
+Fill the Citadel application
+```
+
+When a form asks something new, it asks you and offers to remember the answer for
+next time. After you submit, run `cv-log-application`.
+
 ## Tracking outcomes from your inbox
 
 `postman.sh` reads recruiting mail since your earliest logged application and writes
@@ -475,7 +505,8 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All twelve skills are implemented; six are validated end-to-end as skills.
+All thirteen skills are implemented; six are validated end-to-end as skills.
+`cv-fill-application` is built but not yet validated: its helpers are unit-tested, but it has not yet filled a real form.
 `cv-score-postings` is implemented and unit-tested at the code layer (JD description
 capture, the `scored` flag) but hasn't yet been exercised through a live nightly
 `score-postings.sh` run against real postings and real branches — if that surfaces
