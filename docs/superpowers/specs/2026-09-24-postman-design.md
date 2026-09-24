@@ -293,18 +293,36 @@ Offline and fixture-based.
 - the JSON contract and exit codes
 - **the app password never appears in stdout or stderr**, asserted explicitly
 
-### Fixtures come from real mail
+### Fixtures: synthetic now, real mail later
 
 This project has been burned three times by fixtures friendlier than real input:
 Greenhouse's entity-escaped HTML, the gate against whitespace-collapsed HTML, and
 location matching against "San Francisco, CA". Parsing mail — encodings, multipart
 layouts, platform templates — is the same risk in a new place.
 
-So fixtures are derived from real recruiting emails the user exports as `.eml`, kept
-outside both repositories. Committed fixtures are trimmed, with the user's name,
-address, phone, candidate IDs and tokenized links replaced, and each is shown to the
-user before it enters `CVApplicate`, which is a public repository.
+Real exported samples are not available at implementation time, so fixtures are
+built in two stages.
 
-The validation that remains after that is the first real run on the user's machine,
-reviewed proposal by proposal in `cv-review-outcomes` — which is built to make a
-misclassification cost a "no" rather than a wrong log entry.
+**Now: generated with Python's own `email` library,** so their *structure* is genuine
+even though their wording is invented:
+- `multipart/alternative` with both `text/plain` and `text/html` parts, and an
+  HTML-only message, since some ATS templates send no plain part
+- RFC 2047 encoded headers (`=?UTF-8?B?…?=` and `=?UTF-8?Q?…?=`), including Turkish
+  characters in a sender name
+- base64 and quoted-printable transfer encodings
+- a non-UTF-8 charset (`iso-8859-1`)
+- a message with no `Message-ID`
+
+Constructing them through the library, rather than writing raw `.eml` text by hand,
+guarantees they are messages a real client could have produced.
+
+**Later: a dedicated follow-up task** adds fixtures derived from the user's exported
+recruiting mail, kept outside both repositories until trimmed. Committed versions have
+the user's name, address, phone, candidate IDs and tokenized links replaced, and each is
+shown to the user before entering `CVApplicate`, which is public. Anything that breaks
+against them is a bug that would otherwise have surfaced on the first real run.
+
+**What this leaves unvalidated until then:** classification against real template
+wording, and any parsing quirk the synthetic set does not anticipate. The mitigation is
+structural: nothing reaches the log without the user confirming it in
+`cv-review-outcomes`, so a misclassification costs a "no" rather than a wrong entry.
