@@ -29,8 +29,9 @@ Spec: `docs/superpowers/specs/2026-09-24-filler-design.md`.
 - Forbidden categories are never stored, never echoed and never typed: passwords, SSN
   or national ID, passport numbers, bank or card details, date of birth. Error
   messages name the key path, never its value.
-- The skill never submits: no click on Submit, Apply, Send, Finish or Confirm without
-  the user's go-ahead.
+- The skill never submits: it never clicks Submit, Apply, Send, Finish or Confirm, even
+  when the user asks. The one exception is an "Apply" button on a posting page that
+  only opens the form, which needs the user's go-ahead first.
 - Never sign in, never create an account, never complete a CAPTCHA, never tick
   consent, certification or terms boxes.
 - Tests never read the real `answers.local.yaml`, `.env`, log or outbox.
