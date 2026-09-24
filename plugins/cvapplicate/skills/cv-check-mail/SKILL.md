@@ -50,28 +50,46 @@ None. Everything comes from `python3 pipeline.py mail`.
      empty `candidates` list.
 5. Assign `confidence`: `high` only when both the outcome and the application are
    unambiguous; `medium` when one of them needed judgement; `low` when you are unsure.
-6. Write `outcomes.pending.yaml` in **one** tool call — build the whole new file
-   (existing entries plus the new `seen` ids and new proposals) and write it once.
-   Never append `seen` in one call and proposals in another: a run that dies between
-   them would mark messages seen whose proposals were never recorded.
-   - Append every candidate's `message_id` to `seen` — outcomes and non-outcomes alike,
-     so nothing is ever reprocessed.
-   - Append one proposal per outcome message, in this shape:
-     ```yaml
-     - message_id: "<abc123@mail.citadel.com>"
+6. Record the run in `outcomes.pending.yaml` with **one** tool call, so a run that dies
+   midway never marks a message seen without also recording its proposal.
+
+   The file keeps `proposals:` first and `seen:` **last**, so both lists can grow in one
+   small edit without rewriting the file:
+   ```yaml
+   proposals:
+     - message_id: '<abc123@mail.citadel.com>'
        received: 2026-09-02
-       from: "Citadel Recruiting <no-reply@citadel.com>"
-       subject: "Your Citadel Application"
+       from: 'Citadel Recruiting <no-reply@citadel.com>'
+       subject: 'Your Citadel Application'
        proposed_outcome: rejected
        application_id: citadel-swe-2026-08
        candidates: []
-       evidence: "Unfortunately, we will not be moving forward with your application"
+       evidence: |-
+         Unfortunately, we will not be moving forward with your application
        confidence: high
-     ```
+   seen:
+     - '<abc123@mail.citadel.com>'
+     - '<def456@greenhouse-mail.io>'
+   ```
+   - **If the file does not exist**, create it with Write in exactly that layout.
+   - **If it exists**, Read it, then make one Edit whose `old_string` is the line
+     `seen:` and whose `new_string` is your new proposal entries, then `seen:`, then
+     your new seen ids. That appends the proposals to the end of the proposals list and
+     the ids to the top of the seen list. Do not rewrite or reorder existing entries,
+     and never remove any — `cv-review-outcomes` owns removal.
+   - An empty list is a bare `proposals:` or `seen:` line, never `[]`. If you find
+     `[]` in the file, Write the whole file back instead, in the layout above, with
+     every existing entry kept — still one tool call.
+   - `seen` gets every candidate's `message_id` — outcomes and non-outcomes alike, so
+     nothing is ever reprocessed.
+   - Write `message_id`, `from` and `subject` in single quotes, doubling any `'` inside.
+     Write `received` unquoted as `YYYY-MM-DD`, or `null` if the candidate had none.
    - `evidence` is a **verbatim** quote from the message body, the shortest one that
-     justifies the outcome. Never paraphrase it: the user confirms against it.
-   - Create the file with `seen:` and `proposals:` keys if it does not exist. Never
-     remove existing entries — `cv-review-outcomes` owns removal.
+     justifies the outcome, written as the `|-` block shown. Never paraphrase it: the
+     user confirms against it.
+   - Afterwards, run `python3 pipeline.py review`. If it exits non-zero, the file no
+     longer parses: fix only the entries you just added, run it again, and report
+     loudly if it still fails.
 7. If `remaining` is greater than zero, say so: that many more candidates wait for the
    next run.
 8. Report: how many messages were examined, how many proposals were written by outcome

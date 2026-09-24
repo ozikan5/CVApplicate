@@ -310,6 +310,25 @@ recorded with the email's date and committed in one go.
 Enable IMAP for the Gmail account in `.env` first: Gmail → Settings → Forwarding and
 POP/IMAP → Enable IMAP.
 
+1. Run it once by hand to confirm it works: `./postman.sh` (requires the `claude` CLI on
+   PATH). The first run looks back to your earliest logged application, so it may take
+   a few nights to work through a backlog; the report says how many candidates remain.
+2. To run it automatically every evening at 9pm:
+   - Copy `launchd/com.cvapplicate.postman.plist.example` to
+     `~/Library/LaunchAgents/com.cvapplicate.postman.plist`
+   - Replace every `/ABSOLUTE/PATH/TO/CVApplicate` placeholder with this repo's actual
+     absolute path (find it with `pwd`).
+   - **Important:** as with `score-postings.sh`, if `which claude` differs between your
+     interactive shell and a bare launchd environment, the job fails with "command not
+     found".
+   - Load it: `launchctl load ~/Library/LaunchAgents/com.cvapplicate.postman.plist`
+   - Check `postman.log` in the repo for output. To stop it:
+     `launchctl unload ~/Library/LaunchAgents/com.cvapplicate.postman.plist`
+
+The runner's permissions allow it to write only `outcomes.pending.yaml` and to run
+`pipeline.py`; it has no git rights, and edits to the pipeline code, the plugin and the
+application log are explicitly denied.
+
 ---
 
 # Guardrails
@@ -466,7 +485,9 @@ user either. `cv-resolve-posting` is unit-tested at the code layer (140 tests co
 five ATS adapters, the JSON-LD and page-text tiers, the degradation paths and both CLI
 modes, run against both Python 3.14 and 3.9) plus one live smoke test against a real
 Greenhouse posting — but it hasn't yet been driven end-to-end as a skill against real
-industry branches and a real `master-data.md`. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
+industry branches and a real `master-data.md`. `cv-check-mail` and `cv-review-outcomes`
+are unit-tested at the code layer (IMAP access, candidate matching, the review
+annotations) against synthetic mail, but haven't yet run against a real mailbox. See [`docs/superpowers/specs/`](docs/superpowers/specs/) for the design and
 [`docs/superpowers/plans/`](docs/superpowers/plans/) for how it was built.
 
 ## License

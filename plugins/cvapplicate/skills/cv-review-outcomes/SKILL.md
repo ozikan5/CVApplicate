@@ -14,26 +14,25 @@ None. Proposals come from `outcomes.pending.yaml`.
 
 ## Procedure
 
-1. Run `git status`. If the working tree is not clean, stop and say what is
-   uncommitted. Note the current branch so you can return to it.
+1. Run `git status --porcelain --untracked-files=no`. If it prints anything, stop and
+   say what is uncommitted. Note the current branch so you can return to it.
 2. `git checkout main` — the application log lives only on `main`.
 3. Run `python3 pipeline.py review` and read the JSON. If there are no proposals, say
    so and stop.
-4. Proposals with `application_missing: true` concern an application no longer in the
-   log. Do not ask about them: list them in one line each (sender, subject, the
-   missing `application_id`) and treat them as discarded.
-
-   Present the rest one at a time. For each, show: the company and role (or the
+4. Present the proposals one at a time. For each, show: the company and role (or the
    candidate applications, if ambiguous), `current_outcome` → `proposed_outcome`, the
    `received` date, the sender and subject, and the `evidence` quote verbatim. Show
    the **default answer** from `default_answer`, and say why when it is no — low
-   confidence, `regresses`, or ambiguous.
+   confidence, `regresses`, ambiguous, or `application_missing` (the id it names is not
+   in the log — perhaps removed since, perhaps mis-matched from the email).
 5. Take the user's answer to **that proposal**. Every proposal needs its own answer:
    if the user says "yes to all" or similar, explain that each one is confirmed
    individually and ask about the current one.
    - **yes** — accept as proposed. This overrides a default of no, including one due to
-     `regresses`; the user decides. An ambiguous proposal cannot be accepted with a
-     plain yes; ask which of the candidate applications it concerns.
+     `regresses`; the user decides. A proposal that is ambiguous or
+     `application_missing` cannot be accepted with a plain yes: ask which application
+     it concerns — from its `candidates`, or, when those are empty, from the entries in
+     `applications/log.yaml` — then treat the answer as an **edit**.
    - **no** — discard the proposal.
    - **edit** — change the outcome, or pick the application. The `received` date still
      becomes `outcome_date`. `regresses` was computed for the original proposal, so
@@ -50,10 +49,13 @@ None. Proposals come from `outcomes.pending.yaml`.
    to record.
 7. For each accepted proposal, set that entry's `outcome` and set `outcome_date` to
    the proposal's **`received` date, not today**, as `YYYY-MM-DD` — the email date is
-   when the outcome actually happened.
+   when the outcome actually happened. If `received` is null, ask the user for the
+   date rather than using today.
 8. Commit once: `git add applications/log.yaml && git commit -m "Log outcomes: <N> applications"`.
 9. Remove every handled proposal — accepted, edited or discarded — from
-   `outcomes.pending.yaml`. Keep the `seen` list intact.
+   `outcomes.pending.yaml`. Keep the `seen` list intact and the layout `cv-check-mail`
+   relies on: `proposals:` first, `seen:` last, and an empty list as a bare
+   `proposals:` line, never `[]`.
 10. `git checkout` the branch you started on, if it was not `main`.
 11. Report what was recorded, what was discarded, and what remains pending.
 
