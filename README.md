@@ -6,7 +6,7 @@ version-controlled pipeline.
 ## What this is
 
 If you already paste your CV and a job description into an AI, ask for a score, fix the
-weak points, and submit — this packages that loop into ten skills, backed by
+weak points, and submit — this packages that loop into twelve skills, backed by
 git. Each industry you apply to gets its own branch. Every application gets logged against
 the exact commit of the CV you sent.
 
@@ -28,7 +28,7 @@ CVApplicate/
 ├── plugins/cvapplicate/
 │   ├── .claude-plugin/plugin.json    Plugin manifest
 │   ├── scripts/check-cv-text.py      Mechanical repetition/filler detector
-│   └── skills/                       The ten skills below
+│   └── skills/                       The twelve skills below
 │
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
@@ -52,6 +52,8 @@ CVApplicate/
 | **cv-resolve-posting** | Resolves a pasted job posting URL into the tracked postings file and scores it against every industry branch |
 | **cv-tailor-packet** | Tailors the CV for one scored posting and writes a submit-ready packet to `outbox/` — never commits, never claims you applied |
 | **cv-log-application** | Records that you actually submitted a packet: commits that CV to the industry branch and appends the log entry |
+| **cv-check-mail** | Reads recent recruiting mail and proposes outcomes for logged applications — never changes the mailbox or the log |
+| **cv-review-outcomes** | Walks you through proposed outcomes and records the ones you confirm, in one commit |
 
 ---
 
@@ -66,7 +68,7 @@ In your AI coding CLI:
 /plugin install cvapplicate@cvapplicate
 ```
 
-This installs the ten skills once, available in any directory. When this repo's skills
+This installs the twelve skills once, available in any directory. When this repo's skills
 get updated upstream, pull them with `/plugin update cvapplicate` (or reinstall) — updates
 aren't automatic.
 
@@ -287,6 +289,27 @@ That commits the packet's `cv.tex` to the industry branch and writes the log ent
 with the real submission date, so `git show <cv_commit>:cv.tex` recovers exactly what
 you sent — for the applications you really made, and no others.
 
+## Tracking outcomes from your inbox
+
+`postman.sh` reads recruiting mail since your earliest logged application and writes
+**proposals** to `outcomes.pending.yaml` — rejections, online assessments, interview
+invitations and offers, each with the sentence that justifies it. It never changes your
+mailbox: folders are opened read-only and messages stay unread.
+
+Nothing is written to your application log until you confirm it:
+
+```
+Run cv-review-outcomes
+```
+
+Each proposal comes with a default answer. It is only "yes" for a confident proposal
+concerning exactly one application; anything ambiguous — a Microsoft email that could
+be about any of three applications — needs you to choose. Confirmed outcomes are
+recorded with the email's date and committed in one go.
+
+Enable IMAP for the Gmail account in `.env` first: Gmail → Settings → Forwarding and
+POP/IMAP → Enable IMAP.
+
 ---
 
 # Guardrails
@@ -433,7 +456,7 @@ reinstall) to pick up the latest version.
 
 ## Status
 
-All ten skills are implemented; six are validated end-to-end as skills.
+All twelve skills are implemented; six are validated end-to-end as skills.
 `cv-score-postings` is implemented and unit-tested at the code layer (JD description
 capture, the `scored` flag) but hasn't yet been exercised through a live nightly
 `score-postings.sh` run against real postings and real branches — if that surfaces
