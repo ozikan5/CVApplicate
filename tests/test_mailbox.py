@@ -154,6 +154,7 @@ class RecordingIMAP:
         self.calls = []
         self._list = list_lines
         self._messages = messages  # {"1": raw_bytes, ...}
+        self.forbidden = []
 
     def list(self, *args):
         self.calls.append(("list", args, {}))
@@ -183,6 +184,10 @@ class RecordingIMAP:
         return "BYE", []
 
     def __getattr__(self, name):
+        # __getattr__ only fires for missing attributes, so reading
+        # self.forbidden here is safe as long as __init__ has already run
+        # (it always has, by the time any command method is looked up).
+        self.__dict__["forbidden"].append(name)
         raise AssertionError(f"forbidden IMAP command issued: {name}")
 
 
@@ -194,6 +199,37 @@ def _two_messages():
         "2": _build(sender="HackerRank <support@hackerrank.com>", subject="Assessment",
                     plain="Your assessment is ready.", message_id="<b@hackerrank.com>"),
     }
+
+
+def _spec_is_read_only(spec: str) -> bool:
+    """True only if, after every BODY.PEEK[...] item is removed, nothing that
+    marks a message as read remains.
+
+    A plain "PEEK" in spec substring check is not enough: specs such as
+    "(RFC822 BODY.PEEK[])" or "(BODY.PEEK[HEADER] BODY[TEXT])" contain the
+    substring "PEEK" while still fetching a mark-as-read item alongside it.
+    """
+    stripped = re.sub(r"BODY\.PEEK\[[^\]]*\]", "", spec)
+    for marker in ("BODY[", "RFC822", "BODY.TEXT"):
+        if marker in stripped:
+            return False
+    return True
+
+
+def test_spec_is_read_only_rejects_mixed_peek_specs():
+    """Guards the guard: each of these passes a naive 'PEEK' in spec check
+    while still setting \\Seen on the server."""
+    offending = [
+        "(RFC822 BODY.PEEK[])",
+        "(BODY.PEEK[HEADER] BODY[TEXT])",
+        "(BODY[] BODY.PEEK[HEADER])",
+        "(RFC822.TEXT BODY.PEEK[])",
+    ]
+    for spec in offending:
+        assert "PEEK" in spec  # sanity: the naive check really would pass this
+        assert not _spec_is_read_only(spec), spec
+    assert _spec_is_read_only(mailbox.HEADERS_SPEC)
+    assert _spec_is_read_only(mailbox.FULL_SPEC)
 
 
 def test_the_mailbox_is_only_ever_read():
@@ -208,8 +244,23 @@ def test_the_mailbox_is_only_ever_read():
     selects = [c for c in conn.calls if c[0] == "select"]
     assert selects and all(c[2]["readonly"] is True for c in selects)
     fetches = [c for c in conn.calls if c[0] == "fetch"]
-    assert fetches and all("PEEK" in c[1][1] for c in fetches)
+    assert fetches and all(_spec_is_read_only(c[1][1]) for c in fetches)
     assert {c[0] for c in conn.calls} <= {"list", "select", "search", "fetch"}
+    assert conn.forbidden == []
+
+
+def test_a_swallowed_forbidden_command_still_fails_the_invariant():
+    """Even if a future try/except Exception around an IMAP call swallowed
+    the fake's AssertionError, the attempt is still recorded in .forbidden,
+    so the mailbox-is-only-ever-read invariant still catches it."""
+    conn = RecordingIMAP(ALL_MAIL_LIST, _two_messages())
+
+    try:
+        conn.store("1", "+FLAGS", "\\Seen")
+    except Exception:
+        pass
+
+    assert "store" in conn.forbidden
 
 
 def test_the_recording_fake_really_catches_a_write():
@@ -222,8 +273,8 @@ def test_the_recording_fake_really_catches_a_write():
 
 
 def test_both_fetch_specs_peek():
-    assert "PEEK" in mailbox.HEADERS_SPEC
-    assert "PEEK" in mailbox.FULL_SPEC
+    assert _spec_is_read_only(mailbox.HEADERS_SPEC)
+    assert _spec_is_read_only(mailbox.FULL_SPEC)
 
 
 def test_find_all_mail_folder_uses_the_all_flag():
@@ -252,6 +303,17 @@ def test_open_folder_falls_back_to_inbox_with_a_warning():
 
     assert folder == "INBOX"
     assert warnings and "INBOX" in warnings[0]
+    selects = [c for c in conn.calls if c[0] == "select"]
+    assert selects and selects[-1][2]["readonly"] is True
+
+
+def test_find_all_mail_folder_matches_the_all_flag_case_insensitively():
+    """IMAP flags are case-insensitive; a server or proxy sending \\all in
+    lowercase must still be recognized."""
+    lowercase = [b'(\\HasNoChildren \\all) "/" "[Gmail]/All Mail"']
+    conn = RecordingIMAP(lowercase, {})
+
+    assert mailbox.find_all_mail_folder(conn) == '"[Gmail]/All Mail"'
 
 
 def test_search_since_sends_an_english_date():
@@ -358,3 +420,80 @@ def test_connect_verifies_tls_certificates(monkeypatch):
     assert context is not None
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
+
+
+def test_connect_maps_an_abort_during_login_to_unavailable(monkeypatch):
+    """imaplib.IMAP4.abort is a subclass of imaplib.IMAP4.error. A connection
+    dropped mid-login must be retried, not reported as a bad password."""
+    class _FakeSSLAbort:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def login(self, user, password):
+            raise imaplib.IMAP4.abort("connection dropped")
+
+    monkeypatch.setattr(mailbox.imaplib, "IMAP4_SSL", _FakeSSLAbort)
+
+    with pytest.raises(mailbox.MailboxUnavailable) as excinfo:
+        mailbox.connect("imap.gmail.com", "me@gmail.com", "pw")
+
+    assert excinfo.value.exit_code == 4
+
+
+def test_connect_closes_the_connection_when_login_fails(monkeypatch):
+    """On auth failure, the socket must be closed. Cleanup must never itself
+    raise, even against a fake with no shutdown/logout method."""
+    closed = []
+
+    class _FakeSSLWithLogout:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def login(self, user, password):
+            raise imaplib.IMAP4.error("bad password")
+
+        def logout(self):
+            closed.append(True)
+
+    monkeypatch.setattr(mailbox.imaplib, "IMAP4_SSL", _FakeSSLWithLogout)
+
+    with pytest.raises(mailbox.MailboxError):
+        mailbox.connect("imap.gmail.com", "me@gmail.com", "pw")
+
+    assert closed == [True]
+
+
+def test_connect_cleanup_never_raises_when_the_fake_has_no_close_method(monkeypatch):
+    """A fake with neither shutdown nor logout must not turn an auth failure
+    into an AttributeError."""
+    class _FakeSSLNoClose:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def login(self, user, password):
+            raise imaplib.IMAP4.error("bad password")
+
+    monkeypatch.setattr(mailbox.imaplib, "IMAP4_SSL", _FakeSSLNoClose)
+
+    with pytest.raises(mailbox.MailboxError):
+        mailbox.connect("imap.gmail.com", "me@gmail.com", "pw")
+
+
+def test_connect_maps_any_other_exception_to_mailbox_error_without_leaking_text(monkeypatch):
+    """A non-ASCII password can raise UnicodeEncodeError from deep inside
+    imaplib; the message must never include the exception's own text, which
+    could name a password character and its position."""
+    class _FakeSSLUnicodeBoom:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def login(self, user, password):
+            raise UnicodeEncodeError("ascii", password, 0, 1, "ordinal not in range(128)")
+
+    monkeypatch.setattr(mailbox.imaplib, "IMAP4_SSL", _FakeSSLUnicodeBoom)
+
+    with pytest.raises(mailbox.MailboxError) as excinfo:
+        mailbox.connect("imap.gmail.com", "me@gmail.com", "pwé")
+
+    assert "ordinal not in range" not in str(excinfo.value)
+    assert "pwé" not in str(excinfo.value)

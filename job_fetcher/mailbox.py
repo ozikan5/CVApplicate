@@ -130,8 +130,10 @@ def find_all_mail_folder(conn):
         if not isinstance(line, str):
             continue
         match = _LIST_RE.match(line.strip())
-        if match and "\\All" in match.group("flags").split():
-            return match.group("name").strip()
+        if match:
+            flags = {flag.lower() for flag in match.group("flags").split()}
+            if "\\all" in flags:
+                return match.group("name").strip()
     return None
 
 
@@ -185,19 +187,48 @@ def fetch_parsed(conn, seqs, spec):
     return results
 
 
+def _close_quietly(conn):
+    """Best-effort cleanup after a failed login. Must never itself raise: some
+    fakes (and connections in an unknown state) have neither method."""
+    for method_name in ("shutdown", "logout"):
+        method = getattr(conn, method_name, None)
+        if method is None:
+            continue
+        try:
+            method()
+        except Exception:
+            pass
+        return
+
+
 def connect(host, user, password):
     """Log in over IMAPS. Error messages never include the password."""
+    conn = None
     try:
         conn = imaplib.IMAP4_SSL(host, timeout=30, ssl_context=ssl.create_default_context())
         conn.login(user, password)
         return conn
+    except imaplib.IMAP4.abort:
+        # A subclass of imaplib.IMAP4.error: the connection dropped mid-login,
+        # a transient network fault, not a bad credential. Must be checked first.
+        if conn is not None:
+            _close_quietly(conn)
+        raise MailboxUnavailable(f"connection to {host} dropped during login") from None
     except imaplib.IMAP4.error:
+        if conn is not None:
+            _close_quietly(conn)
         raise MailboxError(
             "IMAP login failed. Check that IMAP is enabled (Gmail -> Settings -> "
             "Forwarding and POP/IMAP -> Enable IMAP) and that SMTP_APP_PASSWORD "
             "is a current app password."
         ) from None
     except (socket.timeout, OSError) as error:
+        if conn is not None:
+            _close_quietly(conn)
         raise MailboxUnavailable(
             f"could not reach {host}: {type(error).__name__}"
         ) from None
+    except Exception:
+        if conn is not None:
+            _close_quietly(conn)
+        raise MailboxError("could not connect to the mailbox") from None
