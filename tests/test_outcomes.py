@@ -103,6 +103,11 @@ import pytest
     ("rejected", "interview", True),     # a positive after a rejection needs a human
     ("no_response", "interview", False), # they replied late
     ("interview", "interview", False),
+    (None, "interview", True),           # missing from the log needs a human
+    ("garbage", "offer", True),          # unrecognised current stage
+    ("pending", "garbage", True),        # hallucinated proposed outcome
+    ("pending", "no_response", True),    # not a proposable outcome
+    ("pending", None, True),             # proposed_outcome missing entirely
 ])
 def test_regresses(current, proposed, expected):
     assert outcomes.regresses(current, proposed) is expected
@@ -133,6 +138,17 @@ def test_default_answer_is_no_for_a_regression():
     ) is False
 
 
+@pytest.mark.parametrize("proposal,current", [
+    ({"confidence": "high", "application_id": "x", "proposed_outcome": "interview"}, None),
+    ({"confidence": "high", "application_id": "x", "proposed_outcome": "offer"}, "garbage"),
+    ({"confidence": "high", "application_id": "x", "proposed_outcome": "no_response"}, "pending"),
+    ({"confidence": "high", "application_id": "x", "proposed_outcome": "qwerty"}, "pending"),
+    ({"confidence": "high", "application_id": "x"}, "pending"),
+])
+def test_default_answer_is_no_for_unrecognised_values(proposal, current):
+    assert outcomes.default_answer(proposal, current) is False
+
+
 def test_load_pending_returns_empty_state_for_a_missing_file(tmp_path):
     assert outcomes.load_pending(str(tmp_path / "absent.yaml")) == {
         "seen": [], "proposals": [],
@@ -156,6 +172,22 @@ def test_load_pending_and_seen_ids(tmp_path):
 def test_load_pending_rejects_a_malformed_file(tmp_path):
     path = tmp_path / "outcomes.pending.yaml"
     path.write_text("- not\n- a mapping\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        outcomes.load_pending(str(path))
+
+
+def test_load_pending_rejects_a_non_list_seen(tmp_path):
+    path = tmp_path / "outcomes.pending.yaml"
+    path.write_text("seen: abc\nproposals: []\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        outcomes.load_pending(str(path))
+
+
+def test_load_pending_rejects_a_non_list_proposals(tmp_path):
+    path = tmp_path / "outcomes.pending.yaml"
+    path.write_text("seen: []\nproposals: abc\n", encoding="utf-8")
 
     with pytest.raises(ValueError):
         outcomes.load_pending(str(path))

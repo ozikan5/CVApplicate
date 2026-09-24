@@ -62,6 +62,7 @@ def is_candidate(message: dict, applications: list) -> bool:
 
 STAGES = ("pending", "assessment", "interview", "offer")
 PROPOSABLE = ("assessment", "interview", "offer", "rejected")
+KNOWN_OUTCOMES = STAGES + ("rejected", "no_response")
 
 
 def regresses(current: str, proposed: str) -> bool:
@@ -70,7 +71,12 @@ def regresses(current: str, proposed: str) -> bool:
     Stages only move forward. `rejected` may follow any stage. A positive stage
     after `rejected` needs a human. `no_response` may be followed by anything,
     since a late reply is progress.
+
+    Any value outside the recognised set counts as a regression: an unknown
+    `proposed` or `current` needs a human, so it must not be treated as safe.
     """
+    if proposed not in PROPOSABLE or current not in KNOWN_OUTCOMES:
+        return True
     if proposed == current:
         return False
     if proposed == "rejected":
@@ -88,10 +94,13 @@ def default_answer(proposal: dict, current: str) -> bool:
     Anything else defaults to no, so it can never be accepted just by pressing
     through the list.
     """
+    proposed_outcome = proposal.get("proposed_outcome")
     return (
         proposal.get("confidence") == "high"
         and proposal.get("application_id") is not None
-        and not regresses(current, proposal.get("proposed_outcome", ""))
+        and proposed_outcome in PROPOSABLE
+        and current in KNOWN_OUTCOMES
+        and not regresses(current, proposed_outcome)
     )
 
 
@@ -104,7 +113,13 @@ def load_pending(path: str) -> dict:
         return {"seen": [], "proposals": []}
     if not isinstance(data, dict):
         raise ValueError(f"{path} must be a mapping with 'seen' and 'proposals' keys")
-    return {"seen": list(data.get("seen") or []), "proposals": list(data.get("proposals") or [])}
+    seen = data.get("seen")
+    if seen is not None and not isinstance(seen, list):
+        raise ValueError(f"{path}: 'seen' must be a list")
+    proposals = data.get("proposals")
+    if proposals is not None and not isinstance(proposals, list):
+        raise ValueError(f"{path}: 'proposals' must be a list")
+    return {"seen": list(seen or []), "proposals": list(proposals or [])}
 
 
 def seen_ids(pending: dict) -> set:
