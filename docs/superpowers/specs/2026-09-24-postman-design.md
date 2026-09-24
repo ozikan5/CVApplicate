@@ -67,11 +67,13 @@ NIGHTLY (unattended, no git writes)                YOU (interactive)
 postman.sh
   └─ cv-check-mail (skill)
        ├─ python3 pipeline.py mail     ← IMAP, read-only; credential stays here
+       │     read the log from main via git show
        │     connect → EXAMINE the \All folder
        │     SEARCH SINCE <earliest date_applied>
-       │     FETCH BODY.PEEK[…]         (messages stay unread)
-       │     prefilter → only ATS / applied-company mail
-       │     drop already-seen Message-IDs
+       │     FETCH BODY.PEEK[HEADER.FIELDS …] for every match
+       │     prefilter on headers → only ATS / applied-company mail
+       │     drop already-seen Message-IDs and the user's own mail
+       │     FETCH BODY.PEEK[] for the candidates only
        │     → JSON on stdout
        ├─ model classifies each candidate
        └─ writes outcomes.pending.yaml  ─────────►  cv-review-outcomes (skill)
@@ -151,6 +153,19 @@ names come from a fixed English table.
 
 Both of these pass every test on an English machine and fail on the user's.
 
+### Headers first, bodies second
+
+A search since the earliest application matches every email received since then —
+potentially thousands. The prefilter needs only sender and subject, so headers are
+fetched for all matches, the prefilter runs on them, and full bodies are fetched only
+for the resulting candidates. Both fetches use `PEEK`.
+
+### Reading the log
+
+`applications/log.yaml` is tracked on `main` only and absent from industry branches by
+design. `pipeline.py` reads it with `git show main:applications/log.yaml`, so the
+nightly run works whichever branch is checked out.
+
 ### What leaves `mailbox.py`
 
 Per message: `Message-ID`, sender, date, subject, and the first 1,500 characters of
@@ -187,8 +202,9 @@ message concerns; the user picks at confirm time.
 ### Stages only move forward
 
 A proposal that would move an application backward — an old assessment email arriving
-after an interview is logged — is marked `regresses: true`, and its default answer at
-confirm time is no.
+after an interview is logged — regresses, and its default answer at confirm time is no.
+`regresses` is a deterministic rule, so it is computed in Python by `pipeline.py review`
+at confirm time rather than written into the pending file by the model.
 
 ## The pending file
 
@@ -207,7 +223,6 @@ proposals:
     candidates: []                          # filled when ambiguous
     evidence: "Unfortunately, we will not be moving forward with your application"
     confidence: high                        # high | medium | low
-    regresses: false
 ```
 
 A message judged not to be an outcome — a receipt, a newsletter — goes into `seen`
@@ -263,7 +278,8 @@ interactive, commits.
   subclass, the defect that was Phase A's Critical.
 - **Missing credentials in `.env`** — exit 2.
 - **No `\All` folder** — fall back to `INBOX`, warn.
-- **Unparseable message** — mark seen with a note; never retried forever, never fatal.
+- **Unparseable message** — returned marked `unparseable` with no sender address, so the
+  prefilter cannot pass it to the model. Never fatal.
 - **Large backfill** — capped at 200 candidates per run to bound cost; the remainder
   carries over and the report states how many.
 - **Proposal for an application since removed from the log** — skipped at confirm
