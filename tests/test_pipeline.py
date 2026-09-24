@@ -1017,3 +1017,79 @@ def test_fill_context_two_packets_claiming_one_posting_exits_2(tmp_path, monkeyp
 
     assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 2
     assert capsys.readouterr().out == ""
+
+
+def test_packets_with_non_utf8_packet_yaml_lists_error(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    # Create a valid packet
+    _make_packet(tmp_path, slug="valid")
+    # Create a packet with non-UTF-8 packet.yaml
+    broken = tmp_path / "outbox" / "broken-utf8"
+    broken.mkdir(parents=True)
+    (broken / "packet.yaml").write_bytes(b"\xff\xfe\x00bad")
+
+    assert cli.main(["pipeline.py", "packets"]) == 0
+
+    entries = {e["slug"]: e for e in json.loads(capsys.readouterr().out)["packets"]}
+    assert entries["broken-utf8"]["error"] == "packet.yaml could not be read"
+    assert "posting_id" in entries["valid"]
+    assert "error" not in entries["valid"]
+
+
+def test_fill_context_ignores_invalid_utf8_packets_in_outbox(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    # Create the main valid packet
+    _make_packet(tmp_path, slug="citadel-swe-intern")
+    # Create a packet with non-UTF-8 packet.yaml (should be ignored)
+    broken = tmp_path / "outbox" / "broken-utf8"
+    broken.mkdir(parents=True)
+    (broken / "packet.yaml").write_bytes(b"\xff\xfe\x00bad")
+    _write_answers(tmp_path)
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 0
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["slug"] == "citadel-swe-intern"
+    assert context["packet"]["company"] == "Citadel"
+
+
+def test_fill_context_cv_pdf_symlink_outside_packet_is_rejected(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    # Create packet directory and a valid packet.yaml without CV
+    directory = _make_packet(tmp_path, pdf=False)
+    # Create a file outside the packet directory
+    outside_pdf = tmp_path / "outside.pdf"
+    outside_pdf.write_bytes(b"%PDF-1.4")
+    # Create a symlink inside the packet pointing outside, using the name from FILL_PACKET
+    symlink_path = directory / "Ozan_Kan_CV_Citadel.pdf"
+    os.symlink(outside_pdf, symlink_path)
+    _write_answers(tmp_path)
+
+    cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"])
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["cv_pdf_path"] is None
+    assert any("PDF" in w for w in context["warnings"])
+
+
+def test_packet_path_with_invalid_yaml_packet_in_outbox_does_not_crash(tmp_path, monkeypatch, capsys):
+    _chdir_project(tmp_path, monkeypatch)
+    save_postings(str(tmp_path / "postings.local.yaml"), [POSTING])
+    # Create a packet with invalid YAML that comes before the valid one alphabetically
+    # (to ensure it's checked first)
+    broken = tmp_path / "outbox" / "aaa-broken-yaml"
+    broken.mkdir(parents=True)
+    (broken / "packet.yaml").write_text("posting_id: [unclosed\n", encoding="utf-8")
+    # Create a valid packet for the posting
+    packet_dir = tmp_path / "outbox" / "stripe-abuse-investigator"
+    packet_dir.mkdir(parents=True)
+    (packet_dir / "packet.yaml").write_text(
+        f"posting_id: {POSTING['id']}\n", encoding="utf-8"
+    )
+
+    exit_code = cli.main(["pipeline.py", "packet-path", POSTING["id"]])
+
+    assert exit_code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["exists"] is True
+    assert result["slug"] == "stripe-abuse-investigator"

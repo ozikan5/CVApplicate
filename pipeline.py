@@ -171,13 +171,9 @@ def _existing_outbox_slugs():
 
 def _find_existing_packet(posting_id: str, existing):
     """Scan outbox/*/packet.yaml for the one whose posting_id matches."""
-    for slug in existing:
-        packet_yaml = os.path.join(OUTBOX_PATH, slug, "packet.yaml")
-        if not os.path.isfile(packet_yaml):
-            continue
-        with open(packet_yaml, "r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle)
-        if isinstance(data, dict) and data.get("posting_id") == posting_id:
+    for slug in sorted(existing):
+        data, error = _read_packet_yaml(slug)
+        if error is None and data.get("posting_id") == posting_id:
             return slug
     return None
 
@@ -418,6 +414,8 @@ def _read_packet_yaml(slug: str):
     try:
         with open(path, "r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle)
+    except (UnicodeDecodeError, OSError):
+        return None, "packet.yaml could not be read"
     except yaml.YAMLError:
         return None, "packet.yaml is not valid YAML"
     if not isinstance(data, dict):
@@ -487,15 +485,33 @@ def fill_context_mode(posting_id: str) -> int:
     cv_pdf_path = None
     if (isinstance(cv_pdf, str) and cv_pdf and os.path.basename(cv_pdf) == cv_pdf
             and os.path.isfile(os.path.join(directory, cv_pdf))):
-        cv_pdf_path = os.path.abspath(os.path.join(directory, cv_pdf))
+        pdf_full_path = os.path.join(directory, cv_pdf)
+        # Check that the resolved path is within the packet directory
+        try:
+            pdf_realpath = os.path.realpath(pdf_full_path)
+            dir_realpath = os.path.realpath(directory)
+            common = os.path.commonpath([pdf_realpath, dir_realpath])
+            if common == dir_realpath:
+                cv_pdf_path = os.path.abspath(pdf_full_path)
+            else:
+                warnings.append("no CV PDF in the packet; there is nothing to upload")
+        except (ValueError, OSError):
+            # ValueError from commonpath if paths are on different drives
+            # OSError from realpath issues
+            warnings.append("no CV PDF in the packet; there is nothing to upload")
     else:
         warnings.append("no CV PDF in the packet; there is nothing to upload")
 
     jd_path = os.path.join(directory, "jd.txt")
     jd_text = None
     if os.path.isfile(jd_path):
-        with open(jd_path, "r", encoding="utf-8", errors="replace") as handle:
-            jd_text = handle.read()
+        try:
+            with open(jd_path, "r", encoding="utf-8", errors="replace") as handle:
+                jd_text = handle.read()
+        except OSError:
+            warnings.append(
+                "jd.txt is missing; free-text answers have no job description to draw on"
+            )
     else:
         warnings.append(
             "jd.txt is missing; free-text answers have no job description to draw on"
