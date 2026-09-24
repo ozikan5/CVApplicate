@@ -72,11 +72,16 @@ None. Everything comes from `python3 pipeline.py mail`.
      - '<def456@greenhouse-mail.io>'
    ```
    - **If the file does not exist**, create it with Write in exactly that layout.
-   - **If it exists**, Read it, then make one Edit whose `old_string` is the line
-     `seen:` and whose `new_string` is your new proposal entries, then `seen:`, then
+   - **If it exists**, Read it, then make one Edit whose `old_string` is the whole
+     unindented `seen:` line **including the newline before and after it** (`\nseen:\n`),
+     and whose `new_string` is that newline, your new proposal entries, `seen:`, then
      your new seen ids. That appends the proposals to the end of the proposals list and
-     the ids to the top of the seen list. Do not rewrite or reorder existing entries,
-     and never remove any — `cv-review-outcomes` owns removal.
+     the ids to the top of the seen list. Mail text in the file is always indented or
+     mid-line, so it cannot match that anchor. Do not rewrite or reorder existing
+     entries, and never remove any — `cv-review-outcomes` owns removal.
+   - If the Edit is refused as not unique, or cannot find the anchor, Write the whole
+     file back instead, in the layout above, with every existing entry kept — still one
+     tool call.
    - An empty list is a bare `proposals:` or `seen:` line, never `[]`. If you find
      `[]` in the file, Write the whole file back instead, in the layout above, with
      every existing entry kept — still one tool call.
