@@ -1,0 +1,59 @@
+# Copy to answers.local.yaml (gitignored by *.local.yaml) and fill in.
+# Read by cv-fill-application to answer the standing questions on application
+# forms. An empty string or null means "no standing answer": the field is left
+# blank for you and listed, never guessed.
+#
+# NEVER put a password, SSN or national ID, passport number, bank or card
+# details, or your date of birth in this file. It is read by an agent, and the
+# loader refuses the whole file if a key names any of them.
+
+contact:
+  first_name: ""
+  last_name: ""
+  preferred_name: ""
+  email: ""            # the address you apply with
+  phone: ""
+  city: ""
+  state: ""
+  country: "United States"
+
+links:
+  linkedin: ""
+  github: ""
+  portfolio: ""
+
+education:
+  school: ""
+  degree: ""           # e.g. "Bachelor of Science"
+  major: ""
+  graduation: ""       # YYYY-MM
+  gpa: null            # a string such as "3.8", or null to leave GPA fields blank
+
+# Legal statements. Write each one out yourself; the Filler never infers them
+# from your profile or CV, and asks you when a form's options don't match.
+work_authorization:
+  authorized_to_work_us: ""        # "Yes" / "No"
+  requires_sponsorship_now: ""     # "Yes" / "No"
+  requires_sponsorship_future: ""  # "Yes" / "No"
+  explanation: ""      # for free-text variants, e.g. "F-1 student eligible for CPT/OPT"
+
+availability:
+  earliest_start: ""   # YYYY-MM-DD
+  terms: []            # e.g. ["Summer 2027"]
+
+referral_source: "Company careers website"
+
+# Voluntary self-identification. Each defaults to declining; change only what
+# you want disclosed.
+demographics:
+  gender: "Decline to self-identify"
+  race_ethnicity: "Decline to self-identify"
+  hispanic_latino: "Decline to self-identify"
+  veteran_status: "Decline to self-identify"
+  disability_status: "Decline to self-identify"
+  sexual_orientation: "Decline to self-identify"
+  transgender: "Decline to self-identify"
+
+# Answers saved during fill sessions via `pipeline.py remember`. Edit freely.
+# Saving rewrites this file without its comments; this example keeps them.
+learned: []
