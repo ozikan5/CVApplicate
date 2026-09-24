@@ -6,6 +6,7 @@ Usage:
     ./pipeline.py gate <posting-id>
     ./pipeline.py packet-path <posting-id>
     ./pipeline.py mail
+    ./pipeline.py review
 
 This exists so the unattended skill runners never need a
 `Bash(python3 -c:*)` grant (arbitrary code execution, and a hole in the
@@ -27,6 +28,9 @@ mail         Reads recruiting mail since the earliest logged application,
              pass the prefilter as JSON: folder, since, warnings, applications,
              candidates, remaining. Credentials come from .env and are never
              printed.
+review       Reads outcomes.pending.yaml and the application log, and prints
+             each proposal annotated with current_outcome, application_missing,
+             regresses and default_answer. Read-only.
 
 <posting-id> is validated against [A-Za-z0-9._-]+ before it touches
 anything else — ATS-supplied ids are not guaranteed to be shell-safe, so
@@ -61,6 +65,7 @@ USAGE = (
     "       pipeline.py gate <posting-id>\n"
     "       pipeline.py packet-path <posting-id>\n"
     "       pipeline.py mail\n"
+    "       pipeline.py review\n"
 )
 
 QUEUE_PATH = "queue.local.txt"
@@ -320,6 +325,41 @@ def mail_mode() -> int:
     return 0
 
 
+def review_mode() -> int:
+    try:
+        pending = outcomes.load_pending(PENDING_PATH)
+        applications = {a["id"]: a for a in _load_applications()}
+    except (FileNotFoundError, ValueError, yaml.YAMLError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    annotated = []
+    for index, proposal in enumerate(pending["proposals"], start=1):
+        if not isinstance(proposal, dict):
+            print(f"error: {PENDING_PATH} proposal {index} is not a mapping", file=sys.stderr)
+            return 2
+        application_id = proposal.get("application_id")
+        try:
+            missing = application_id is not None and application_id not in applications
+            current = applications[application_id]["outcome"] if not missing and application_id is not None else None
+        except TypeError:
+            # application_id is unhashable (e.g. a list or mapping): treat as
+            # an application we cannot find rather than crashing.
+            missing = True
+            current = None
+        proposed = proposal.get("proposed_outcome", "")
+        annotated.append(dict(
+            proposal,
+            current_outcome=current,
+            application_missing=missing,
+            regresses=outcomes.regresses(current, proposed) if current else False,
+            default_answer=(not missing) and current is not None
+                           and outcomes.default_answer(proposal, current),
+        ))
+    print(json.dumps({"proposals": annotated}, default=str))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     arguments = argv[1:]
 
@@ -331,6 +371,8 @@ def main(argv: list[str]) -> int:
         return packet_path_mode(arguments[1])
     if len(arguments) == 1 and arguments[0] == "mail":
         return mail_mode()
+    if len(arguments) == 1 and arguments[0] == "review":
+        return review_mode()
 
     print(USAGE, file=sys.stderr, end="")
     return 2

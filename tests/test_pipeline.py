@@ -498,3 +498,126 @@ def test_mail_fetches_full_bodies_only_for_selected_candidates(tmp_path, monkeyp
 
     assert len(full_calls) == 1
     assert set(full_calls[0][0].split(",")) == {"19", "20"}
+
+
+# --- review ----------------------------------------------------------------
+
+
+def _review_project(tmp_path, monkeypatch, pending_yaml, log_yaml=LOG_YAML):
+    _chdir_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "PENDING_PATH", str(tmp_path / "outcomes.pending.yaml"))
+    monkeypatch.setattr(cli, "_read_log_text", lambda: log_yaml)
+    (tmp_path / "outcomes.pending.yaml").write_text(pending_yaml, encoding="utf-8")
+
+
+def test_review_annotates_a_clear_proposal(tmp_path, monkeypatch, capsys):
+    _review_project(tmp_path, monkeypatch, """
+seen: []
+proposals:
+  - message_id: "<rej@citadel.com>"
+    received: 2026-09-02
+    proposed_outcome: rejected
+    application_id: citadel-swe-2026-08
+    confidence: high
+""")
+
+    assert cli.main(["pipeline.py", "review"]) == 0
+
+    proposal = json.loads(capsys.readouterr().out)["proposals"][0]
+    assert proposal["current_outcome"] == "pending"
+    assert proposal["regresses"] is False
+    assert proposal["default_answer"] is True
+    assert proposal["received"] == "2026-09-02"
+
+
+def test_review_flags_a_regression(tmp_path, monkeypatch, capsys):
+    log = LOG_YAML.replace("  outcome: pending\n- id: microsoft-a", "  outcome: interview\n- id: microsoft-a", 1)
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - message_id: "<oa@citadel.com>"
+    proposed_outcome: assessment
+    application_id: citadel-swe-2026-08
+    confidence: high
+""", log_yaml=log)
+
+    cli.main(["pipeline.py", "review"])
+
+    proposal = json.loads(capsys.readouterr().out)["proposals"][0]
+    assert proposal["current_outcome"] == "interview"
+    assert proposal["regresses"] is True
+    assert proposal["default_answer"] is False
+
+
+def test_review_defaults_an_ambiguous_proposal_to_no(tmp_path, monkeypatch, capsys):
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - message_id: "<m@microsoft.com>"
+    proposed_outcome: rejected
+    application_id: null
+    candidates: [microsoft-a]
+    confidence: high
+""")
+
+    cli.main(["pipeline.py", "review"])
+
+    proposal = json.loads(capsys.readouterr().out)["proposals"][0]
+    assert proposal["current_outcome"] is None
+    assert proposal["default_answer"] is False
+
+
+def test_review_marks_a_proposal_for_a_deleted_application(tmp_path, monkeypatch, capsys):
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - message_id: "<x@gone.com>"
+    proposed_outcome: rejected
+    application_id: no-longer-in-the-log
+    confidence: high
+""")
+
+    cli.main(["pipeline.py", "review"])
+
+    proposal = json.loads(capsys.readouterr().out)["proposals"][0]
+    assert proposal["application_missing"] is True
+    assert proposal["default_answer"] is False
+
+
+def test_review_with_no_pending_file(tmp_path, monkeypatch, capsys):
+    _chdir_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "PENDING_PATH", str(tmp_path / "absent.yaml"))
+    monkeypatch.setattr(cli, "_read_log_text", lambda: LOG_YAML)
+
+    assert cli.main(["pipeline.py", "review"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"proposals": []}
+
+
+def test_review_rejects_a_non_mapping_proposal(tmp_path, monkeypatch, capsys):
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - "just a string, not a mapping"
+""")
+
+    exit_code = cli.main(["pipeline.py", "review"])
+
+    assert exit_code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.strip() == f"error: {cli.PENDING_PATH} proposal 1 is not a mapping"
+
+
+def test_review_treats_unhashable_application_id_as_missing(tmp_path, monkeypatch, capsys):
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - message_id: "<weird@x.com>"
+    proposed_outcome: rejected
+    application_id: [not, a, string]
+    confidence: high
+""")
+
+    exit_code = cli.main(["pipeline.py", "review"])
+
+    assert exit_code == 0
+    proposal = json.loads(capsys.readouterr().out)["proposals"][0]
+    assert proposal["application_missing"] is True
+    assert proposal["current_outcome"] is None
+    assert proposal["regresses"] is False
+    assert proposal["default_answer"] is False
