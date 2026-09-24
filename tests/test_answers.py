@@ -147,3 +147,116 @@ def test_remember_refuses_to_write_into_an_invalid_file(tmp_path):
     with pytest.raises(answers.AnswersError):
         answers.remember(path, "Open to relocation?", "Yes", TODAY)
     assert "hunter2" in Path(path).read_text(encoding="utf-8")
+
+
+# --- Security finding: tokenizer bypasses -------------------------------
+
+@pytest.mark.parametrize("key", [
+    "cardNumber", "bankAccountNumber", "passportNo", "socialSecurityNumber",
+    "pass-word", "pass_word", "national_id", "SSNNumber",
+])
+def test_names_forbidden_catches_tokenizer_bypasses(key):
+    assert answers.names_forbidden(key)
+
+
+@pytest.mark.parametrize("key", [
+    "cardNumber", "bankAccountNumber", "passportNo", "socialSecurityNumber",
+    "pass-word", "pass_word", "national_id", "SSNNumber",
+])
+def test_load_rejects_bypass_keys_without_echoing_value(tmp_path, key):
+    path = _write(tmp_path, f"contact:\n  nested:\n    {key}: secret-value-123\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "secret-value-123" not in str(caught.value)
+    assert key in str(caught.value)
+
+
+@pytest.mark.parametrize("key", [
+    "postcard", "discard", "passing_grade", "embankment_notes", "lessons",
+])
+def test_names_forbidden_has_no_false_positives_on_lookalikes(key):
+    assert not answers.names_forbidden(key)
+
+
+def test_passing_grade_does_not_trip_the_password_substring_check():
+    # "passinggrade" must not contain the "password" root once separators
+    # are stripped; guards against a fuzzy pass...word pattern.
+    assert not answers.names_forbidden("passing_grade")
+    assert not answers.names_forbidden("passingGrade")
+
+
+# --- Security finding: value-shaped secrets -----------------------------
+
+def test_load_rejects_a_key_whose_value_looks_like_an_ssn(tmp_path):
+    path = _write(tmp_path, "contact:\n  nested:\n    id_number: '123-45-6789'\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "123-45-6789" not in str(caught.value)
+    assert "id_number" in str(caught.value)
+
+
+def test_load_rejects_a_key_whose_value_looks_like_a_luhn_valid_card(tmp_path):
+    path = _write(tmp_path, "contact:\n  nested:\n    misc: '4111111111111111'\n")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.load_answers(path)
+    assert "4111111111111111" not in str(caught.value)
+    assert "misc" in str(caught.value)
+
+
+@pytest.mark.parametrize("value", [
+    "555-123-4567",   # 10-digit US phone number
+    "3.8",            # GPA
+    "2026",           # year
+    "2026-09-24",     # date
+    "12345",          # ZIP
+    "4111111111111112",  # 16 digits but fails Luhn
+])
+def test_value_looks_forbidden_has_no_false_positives(value):
+    assert not answers.value_looks_forbidden(value)
+
+
+@pytest.mark.parametrize("value", [
+    "123-45-6789",
+    "123456789",
+    "4111111111111111",
+])
+def test_value_looks_forbidden_catches_ssn_and_card_shapes(value):
+    assert answers.value_looks_forbidden(value)
+
+
+def test_load_allows_plausible_non_secret_values(tmp_path):
+    path = _write(tmp_path, (
+        "contact:\n"
+        "  phone: '555-123-4567'\n"
+        "education:\n"
+        "  gpa: '3.8'\n"
+        "  graduation_year: '2026'\n"
+        "  start_date: '2026-09-24'\n"
+        "  zip: '12345'\n"
+    ))
+    data = answers.load_answers(path)
+    assert data["contact"]["phone"] == "555-123-4567"
+
+
+def test_remember_refuses_an_ssn_shaped_answer_and_does_not_echo_it(tmp_path):
+    path = _write(tmp_path, "learned: []\n")
+    before = Path(path).read_text(encoding="utf-8")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.remember(path, "What is your ID number?", "123-45-6789", TODAY)
+    assert "123-45-6789" not in str(caught.value)
+    assert Path(path).read_text(encoding="utf-8") == before
+
+
+def test_remember_refuses_a_card_shaped_answer_and_does_not_echo_it(tmp_path):
+    path = _write(tmp_path, "learned: []\n")
+    before = Path(path).read_text(encoding="utf-8")
+    with pytest.raises(answers.AnswersError) as caught:
+        answers.remember(path, "Payment reference?", "4111111111111111", TODAY)
+    assert "4111111111111111" not in str(caught.value)
+    assert Path(path).read_text(encoding="utf-8") == before
+
+
+def test_remember_allows_a_phone_number_answer(tmp_path):
+    path = _write(tmp_path, "learned: []\n")
+    entry = answers.remember(path, "Best contact number?", "555-123-4567", TODAY)
+    assert entry["answer"] == "555-123-4567"
