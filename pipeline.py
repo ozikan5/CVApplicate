@@ -46,9 +46,11 @@ an unreadable log, 4 = posting id not found, or the mail server unreachable.
 from __future__ import annotations
 
 import datetime
+import imaplib
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 
@@ -216,18 +218,30 @@ def _load_applications() -> list:
         raise ValueError("applications/log.yaml must be a list of applications")
     applications = []
     for entry in entries:
-        if isinstance(entry, dict) and entry.get("id"):
-            applications.append({
-                "id": entry["id"],
-                "company": entry.get("company", ""),
-                "role": entry.get("role", ""),
-                "outcome": entry.get("outcome") or "pending",
-                "date_applied": entry.get("date_applied"),
-            })
+        if not isinstance(entry, dict):
+            continue
+        entry_id = entry.get("id")
+        if not entry_id:
+            continue
+        company = entry.get("company", "")
+        role = entry.get("role", "")
+        applications.append({
+            "id": str(entry_id),
+            "company": str(company) if company is not None else "",
+            "role": str(role) if role is not None else "",
+            "outcome": entry.get("outcome") or "pending",
+            "date_applied": entry.get("date_applied"),
+        })
     return applications
 
 
 def _as_date(value):
+    # datetime.datetime is a subclass of datetime.date, so it must be checked
+    # first: a hand-edited "date_applied: 2026-09-03 10:00:00" parses as a
+    # datetime, and isinstance(value, datetime.date) would otherwise return it
+    # unchanged, leaving date/datetime objects mixed in the same min() call.
+    if isinstance(value, datetime.datetime):
+        return value.date()
     if isinstance(value, datetime.date):
         return value
     return datetime.date.fromisoformat(str(value))
@@ -288,6 +302,18 @@ def mail_mode() -> int:
             for full in mailbox.fetch_parsed(conn, [h["seq"] for h in selected],
                                              mailbox.FULL_SPEC):
                 bodies[full["seq"]] = full
+    except imaplib.IMAP4.abort:
+        # A subclass of imaplib.IMAP4.error (the connection dropped mid-request):
+        # must be checked first. The exception text is never interpolated —
+        # it can echo server data, and must never be able to leak the password.
+        print("error: lost connection to the mailbox", file=sys.stderr)
+        return 4
+    except (socket.timeout, OSError):
+        print("error: lost connection to the mailbox", file=sys.stderr)
+        return 4
+    except imaplib.IMAP4.error:
+        print("error: the mailbox server rejected a request", file=sys.stderr)
+        return 4
     except mailbox.MailboxError as error:
         print(f"error: {error}", file=sys.stderr)
         return error.exit_code

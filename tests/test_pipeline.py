@@ -189,8 +189,10 @@ def test_usage_error_with_no_subcommand(capsys):
 
 # --- mail ----------------------------------------------------------------
 
+import datetime
 import imaplib
 import re as _re
+import socket
 
 import pytest
 
@@ -621,3 +623,189 @@ proposals:
     assert proposal["current_outcome"] is None
     assert proposal["regresses"] is False
     assert proposal["default_answer"] is False
+
+
+# --- mail: network/protocol failure after login (I1) ------------------------
+
+
+def _raise(exc):
+    def _fn(*args, **kwargs):
+        raise exc
+    return _fn
+
+
+def test_mail_fetch_abort_exits_4(tmp_path, monkeypatch, capsys):
+    fake = _mail_project(tmp_path, monkeypatch, _three_messages())
+    fake.fetch = _raise(imaplib.IMAP4.abort("BYE"))
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 4
+    assert captured.out == ""
+    assert "lost connection to the mailbox" in captured.err
+    assert PASSWORD not in captured.err
+    assert fake.logged_out
+
+
+def test_mail_fetch_timeout_exits_4(tmp_path, monkeypatch, capsys):
+    fake = _mail_project(tmp_path, monkeypatch, _three_messages())
+    fake.fetch = _raise(socket.timeout())
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 4
+    assert captured.out == ""
+    assert "lost connection to the mailbox" in captured.err
+    assert PASSWORD not in captured.err
+
+
+def test_mail_fetch_os_error_exits_4(tmp_path, monkeypatch, capsys):
+    fake = _mail_project(tmp_path, monkeypatch, _three_messages())
+    fake.fetch = _raise(OSError("network is unreachable"))
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 4
+    assert captured.out == ""
+    assert "lost connection to the mailbox" in captured.err
+    assert PASSWORD not in captured.err
+    assert "network is unreachable" not in captured.err
+
+
+def test_mail_fetch_imap_error_exits_4(tmp_path, monkeypatch, capsys):
+    fake = _mail_project(tmp_path, monkeypatch, _three_messages())
+    fake.fetch = _raise(imaplib.IMAP4.error("server says no"))
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 4
+    assert captured.out == ""
+    assert "the mailbox server rejected a request" in captured.err
+    assert PASSWORD not in captured.err
+    assert "server says no" not in captured.err
+
+
+def test_mail_search_abort_exits_4(tmp_path, monkeypatch, capsys):
+    fake = _mail_project(tmp_path, monkeypatch, _three_messages())
+    fake.search = _raise(imaplib.IMAP4.abort("BYE"))
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 4
+    assert captured.out == ""
+    assert "lost connection to the mailbox" in captured.err
+    assert PASSWORD not in captured.err
+    assert fake.logged_out
+
+
+# --- _as_date: datetime mixed with date (M2) --------------------------------
+
+
+def test_as_date_converts_a_datetime_to_a_date():
+    assert cli._as_date(datetime.datetime(2026, 9, 3, 10, 0, 0)) == datetime.date(2026, 9, 3)
+
+
+def test_as_date_leaves_a_plain_date_unchanged():
+    assert cli._as_date(datetime.date(2026, 9, 3)) == datetime.date(2026, 9, 3)
+
+
+MIXED_DATE_LOG_YAML = """
+- id: citadel-swe-2026-08
+  company: "Citadel"
+  role: "Software Engineering Intern"
+  date_applied: 2026-09-03 10:00:00
+  outcome: pending
+- id: microsoft-a
+  company: "Microsoft"
+  role: "SWE Intern, AI/ML"
+  date_applied: 2026-08-24
+  outcome: pending
+"""
+
+
+def test_mail_mixing_a_datetime_and_a_date_does_not_crash_min(tmp_path, monkeypatch, capsys):
+    _mail_project(tmp_path, monkeypatch, _three_messages(), log_yaml=MIXED_DATE_LOG_YAML)
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert out["since"] == "2026-08-24"
+
+
+# --- _load_applications: non-string company/role/id (M3) --------------------
+
+
+def test_load_applications_skips_non_mapping_and_missing_id_entries(tmp_path, monkeypatch):
+    _chdir_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "_read_log_text", lambda: """
+- id: a
+  company: "A Co"
+- "just a string"
+- company: "No Id Co"
+- id: null
+  company: "Null Id Co"
+""")
+
+    applications = cli._load_applications()
+
+    assert [a["id"] for a in applications] == ["a"]
+
+
+def test_load_applications_coerces_non_string_company_role_and_id(tmp_path, monkeypatch):
+    _chdir_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "_read_log_text", lambda: """
+- id: 1010
+  company: 1010
+  role: 7
+  outcome: pending
+""")
+
+    applications = cli._load_applications()
+
+    assert applications == [{
+        "id": "1010", "company": "1010", "role": "7",
+        "outcome": "pending", "date_applied": None,
+    }]
+
+
+def test_mail_with_a_numeric_company_does_not_crash(tmp_path, monkeypatch, capsys):
+    log = """
+- id: acme-2026-08
+  company: 1010
+  role: SWE
+  date_applied: 2026-08-19
+  outcome: pending
+"""
+    _mail_project(tmp_path, monkeypatch, _three_messages(), log_yaml=log)
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out != ""
+
+
+def test_review_with_a_non_string_id_log_entry_does_not_crash(tmp_path, monkeypatch, capsys):
+    log = """
+- id: 1010
+  company: "Weird Co"
+  outcome: pending
+"""
+    _review_project(tmp_path, monkeypatch, """
+proposals:
+  - message_id: "<x@weird.com>"
+    proposed_outcome: rejected
+    application_id: "1010"
+    confidence: high
+""", log_yaml=log)
+
+    exit_code = cli.main(["pipeline.py", "review"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert out["proposals"][0]["current_outcome"] == "pending"

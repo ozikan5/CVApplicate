@@ -123,4 +123,15 @@ def load_pending(path: str) -> dict:
 
 
 def seen_ids(pending: dict) -> set:
-    return set(pending.get("seen") or [])
+    """Message ids already handled. Keeps string entries; for a mapping entry
+    (e.g. {"message_id": "..."}), extracts message_id only when it is itself a
+    string. Anything else is ignored rather than crashing set()."""
+    ids = set()
+    for entry in pending.get("seen") or []:
+        if isinstance(entry, str):
+            ids.add(entry)
+        elif isinstance(entry, dict):
+            message_id = entry.get("message_id")
+            if isinstance(message_id, str):
+                ids.add(message_id)
+    return ids

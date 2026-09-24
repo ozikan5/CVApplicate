@@ -191,3 +191,20 @@ def test_load_pending_rejects_a_non_list_proposals(tmp_path):
 
     with pytest.raises(ValueError):
         outcomes.load_pending(str(path))
+
+
+def test_seen_ids_ignores_non_string_entries():
+    """A hand-edited seen list mixing plain ids with other shapes must not
+    crash set() building: only string entries, and the message_id of a
+    mapping entry when that message_id is itself a string, are kept."""
+    pending = {"seen": [
+        "<a@x.com>",
+        {"message_id": "<b@x.com>"},
+        {"message_id": 123},
+        {"no_message_id": "here"},
+        123,
+        ["<c@x.com>"],
+        None,
+    ]}
+
+    assert outcomes.seen_ids(pending) == {"<a@x.com>", "<b@x.com>"}
