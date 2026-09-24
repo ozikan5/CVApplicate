@@ -380,3 +380,121 @@ def test_mail_unreadable_log_exits_2(tmp_path, monkeypatch, capsys):
 
     assert cli.main(["pipeline.py", "mail"]) == 2
     assert capsys.readouterr().out == ""
+
+
+# --- mail: malformed date_applied -----------------------------------------
+
+ONE_BAD_DATE_LOG_YAML = """
+- id: citadel-swe-2026-08
+  company: "Citadel"
+  role: "Software Engineering Intern"
+  date_applied: TBD
+  outcome: pending
+- id: microsoft-a
+  company: "Microsoft"
+  role: "SWE Intern, AI/ML"
+  date_applied: 2026-08-24
+  outcome: pending
+"""
+
+ALL_BAD_DATE_LOG_YAML = """
+- id: citadel-swe-2026-08
+  company: "Citadel"
+  role: "Software Engineering Intern"
+  date_applied: TBD
+  outcome: pending
+- id: microsoft-a
+  company: "Microsoft"
+  role: "SWE Intern, AI/ML"
+  date_applied: unknown
+  outcome: pending
+"""
+
+MAPPING_LOG_YAML = """
+citadel-swe-2026-08:
+  company: "Citadel"
+  role: "Software Engineering Intern"
+  date_applied: 2026-08-19
+  outcome: pending
+"""
+
+
+def test_mail_one_unparseable_date_warns_but_keeps_going(tmp_path, monkeypatch, capsys):
+    _mail_project(tmp_path, monkeypatch, _three_messages(), log_yaml=ONE_BAD_DATE_LOG_YAML)
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert out["since"] == "2026-08-24"
+    assert len(out["warnings"]) == 1
+    assert "citadel-swe-2026-08" in out["warnings"][0]
+    assert "TBD" in out["warnings"][0]
+    assert any(a["id"] == "citadel-swe-2026-08" for a in out["applications"])
+
+
+def test_mail_all_dates_unparseable_exits_zero_with_warnings(tmp_path, monkeypatch, capsys):
+    _mail_project(tmp_path, monkeypatch, log_yaml=ALL_BAD_DATE_LOG_YAML)
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert out["since"] is None
+    assert out["candidates"] == []
+    assert len(out["warnings"]) == 2
+    joined = " ".join(out["warnings"])
+    assert "citadel-swe-2026-08" in joined
+    assert "microsoft-a" in joined
+
+
+def test_mail_mapping_shaped_log_exits_2(tmp_path, monkeypatch, capsys):
+    _mail_project(tmp_path, monkeypatch, log_yaml=MAPPING_LOG_YAML)
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    assert exit_code == 2
+    assert capsys.readouterr().out == ""
+
+
+# --- mail: headers-first property -------------------------------------------
+
+
+def test_mail_fetches_full_bodies_only_for_selected_candidates(tmp_path, monkeypatch, capsys):
+    messages = {}
+    for i in range(1, 19):
+        messages[str(i)] = build_message(
+            sender=f"Friend{i} <friend{i}@example.org>", subject="hi",
+            plain="just saying hi", message_id=f"<friend{i}@example.org>",
+        )
+    messages["19"] = build_message(
+        sender="Citadel <no-reply@citadel.com>", subject="Your application",
+        plain="Unfortunately, we will not be moving forward.",
+        message_id="<rej19@citadel.com>",
+    )
+    messages["20"] = build_message(
+        sender="Microsoft <no-reply@microsoft.com>", subject="Update on your application",
+        plain="Thanks for applying.", message_id="<rej20@microsoft.com>",
+    )
+    fake = _mail_project(tmp_path, monkeypatch, messages)
+
+    fetch_calls = []
+    original_fetch = fake.fetch
+
+    def recording_fetch(message_set, spec):
+        fetch_calls.append((message_set, spec))
+        return original_fetch(message_set, spec)
+
+    fake.fetch = recording_fetch
+
+    exit_code = cli.main(["pipeline.py", "mail"])
+
+    assert exit_code == 0
+    header_calls = [c for c in fetch_calls if c[1] == mailbox.HEADERS_SPEC]
+    full_calls = [c for c in fetch_calls if c[1] == mailbox.FULL_SPEC]
+
+    assert len(header_calls) == 1
+    assert set(header_calls[0][0].split(",")) == {str(i) for i in range(1, 21)}
+
+    assert len(full_calls) == 1
+    assert set(full_calls[0][0].split(",")) == {"19", "20"}

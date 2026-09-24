@@ -207,6 +207,8 @@ def _read_log_text() -> str:
 
 def _load_applications() -> list:
     entries = yaml.safe_load(_read_log_text()) or []
+    if not isinstance(entries, list):
+        raise ValueError("applications/log.yaml must be a list of applications")
     applications = []
     for entry in entries:
         if isinstance(entry, dict) and entry.get("id"):
@@ -242,23 +244,38 @@ def mail_mode() -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
-    dated = [a for a in applications if a.get("date_applied")]
-    if not dated:
-        print(json.dumps({"folder": None, "since": None, "warnings": [],
+    date_warnings = []
+    parsed_dates = []
+    for application in applications:
+        raw_date = application.get("date_applied")
+        if not raw_date:
+            continue
+        try:
+            parsed_dates.append(_as_date(raw_date))
+        except ValueError:
+            date_warnings.append(
+                f"application {application['id']} has an unreadable date_applied "
+                f"{raw_date!r}; it was left out of the search start date"
+            )
+
+    if not parsed_dates:
+        print(json.dumps({"folder": None, "since": None, "warnings": date_warnings,
                           "applications": [], "candidates": [], "remaining": 0}))
         return 0
-    since = min(_as_date(a["date_applied"]) for a in dated)
+    since = min(parsed_dates)
     seen = outcomes.seen_ids(pending)
 
     conn = None
     try:
         conn = _connect(host, user, password)
         folder, warnings = mailbox.open_folder(conn)
+        warnings = date_warnings + warnings
         seqs = mailbox.search_since(conn, since)
         headers = mailbox.fetch_parsed(conn, seqs, mailbox.HEADERS_SPEC)
+        headers = [h for h in headers if h.get("message_id")]
         own = user.lower()
         fresh = [h for h in headers
-                 if h.get("from_address") != own and h["message_id"] not in seen]
+                 if h.get("from_address") != own and h.get("message_id") not in seen]
         matched = [h for h in fresh if outcomes.is_candidate(h, applications)]
         selected = matched[:MAIL_CANDIDATE_LIMIT]
         bodies = {}
