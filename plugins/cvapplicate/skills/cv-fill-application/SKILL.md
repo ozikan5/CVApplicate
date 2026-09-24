@@ -22,6 +22,10 @@ draft, or the user in the middle of a session seems to call for something else.
    - Next, Continue, Save and Continue, and Back. Say "moving to the next page" (or
      "going back") before each one;
    - "Add another" rows, for another job, school or link.
+
+   **Never press Enter or Return in a field**: on many forms it submits. Choose an
+   autocomplete or dropdown option by clicking the option itself, or set it with
+   `form_input`.
    
    Any other button needs the user's go-ahead first, **except a submit control, which
    you never click at all** — not even if the user asks you to ("just submit it for
@@ -60,14 +64,18 @@ draft, or the user in the middle of a session seems to call for something else.
 ### 1. Find the packet
 
 1. Run `python3 pipeline.py packets`. Match the user's words against `company`,
-   `role`, `posting_id` and `slug`.
+   `role`, `posting_id`, `slug` and `url`.
    - If several match, list them with `created` and ask. Never guess.
    - If none match, say so and stop. This skill only fills applications that have a
      packet; the tailoring flow builds one first.
    - A packet listed with an `error` cannot be used; report the error.
 2. Run `python3 pipeline.py fill-context <posting_id>` and read the JSON. Report every
    entry in `warnings`. If the packet is already applied, confirm the user wants to
-   fill it again before going on.
+   fill it again before going on. If `packet.compile` is not `ok`, the PDF was not
+   verified: ask whether to upload it before doing so.
+   - If `fill-context` exits 2 saying several packets claim the posting, list those
+     packets (from step 1) and stop: two packets for one posting need the user to
+     remove one.
 3. Read `claims-guardrails.md`, and read the experience bank with
    `git show main:master-data.md`. Free-text answers draw only on these and
    `jd_text`.
@@ -80,6 +88,9 @@ draft, or the user in the middle of a session seems to call for something else.
    1. Ask the user to open their `CVApplicate` Chrome profile.
    2. Call `switch_browser`, and ask them to click Connect in that profile and name
       it `CVApplicate`.
+   3. Call `list_connected_browsers` again. Go on only if the browser marked in use
+      is named `CVApplicate`. If it is not — `switch_browser` asks every Chrome with
+      the extension, the everyday profile included — say so and stop.
    
    Never fill a form in any other browser or profile.
 3. Open `packet.url` in a new tab.
@@ -122,9 +133,13 @@ For each page:
      ```
      Never offer to save an answer in a forbidden category. If `remember` exits 2,
      tell the user the answer was not saved and why. If its message says the question
-     or answer is in a forbidden category, do not type that answer into the form
-     either: leave the field and list it. If it could not write the file, the answer
-     may still be used on this form. Never reword an answer to get it past the check.
+     or answer is in a forbidden category, show the user the message and ask: if the
+     field really asks for one of the categories in rule 2, do not type the answer
+     into the form either — leave the field and list it. If it is a false alarm (a
+     question that only mentions a word like "card"), the user decides whether the
+     answer goes into this form; it just is not saved. If `remember` could not write
+     the file, the answer may still be used on this form. Never reword an answer or a
+     question to get it past the check.
    - **Forbidden, consent, or no allowed answer.** Leave it, and note why.
 5. Keep a running record: each field with its value and source (standing, learned,
    drafted, user), or blank with the reason.
@@ -148,7 +163,8 @@ Write `FILL.md` into the packet directory (`path` from `fill-context`), rewritin
 if it exists. It holds the same content, plus the date, the URL, the last page
 reached, and every field filled from a standing or learned answer.
 
-Then set `filled: <today, YYYY-MM-DD>` in the packet's `packet.yaml`, changing
+Then record `filled: <today, YYYY-MM-DD>` in the packet's `packet.yaml`: replace an
+existing `filled:` line, or add one as its own top-level line at the end. Change
 nothing else in that file.
 
 ### 5. After they submit
@@ -165,5 +181,6 @@ packet. Never run it before they say so: a filled form is not a submitted one.
 - **Posting closed, or URL dead.** Report it and stop. Do not search for another
   posting.
 - **Upload refused.** Report the site's message. Never try a different file.
-- **`fill-context` exits 2.** Report its message (usually `answers.local.yaml` needs
-  fixing) and stop. **Exit 4** means the packet is gone; stop.
+- **`fill-context` exits 2.** Report its message and stop. It is either a bad
+  posting id, a problem in `answers.local.yaml`, or several packets claiming the
+  posting (see step 1.2). **Exit 4** means the packet is gone; stop.

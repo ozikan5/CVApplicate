@@ -53,3 +53,6 @@ outcomes.pending.yaml
 
 # Throwaway worktrees used by cv-tailor-packet
 .worktrees/
+
+# Temp file left if pipeline.py remember is killed mid-write
+.answers-*.tmp

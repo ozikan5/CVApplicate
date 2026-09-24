@@ -33,6 +33,7 @@ CVApplicate/
 ├── cv.tex                        Placeholder LaTeX CV        ┐
 ├── master-data.md                Your experience/skills bank │  copy these into
 ├── claims-guardrails.example.md  Template for your claim limits │  your own private
+├── answers.example.yaml          Template for standing form answers │
 ├── applications/log.yaml         History of applications/outcomes │  data repo
 ├── import-overleaf.sh            Import a CV from an Overleaf zip ┘
 └── docs/                         Design spec and implementation plan
@@ -499,9 +500,10 @@ reinstall) to pick up the latest version.
 - A LaTeX toolchain (`latexmk`, `pdflatex`, or `tectonic`) — optional. Without one the
   skills skip compile-checking and say so in their report.
 - Python 3 for `check-cv-text.py` (bundled in the plugin — nothing to install separately)
-- For the fetcher, the scorer and `cv-resolve-posting`: Python 3 with `PyYAML`
-  (`pip install -r requirements.txt`) and a checkout of this repo, since those
-  three call scripts at the repo root rather than inside the plugin
+- For the fetcher, the scorer, `cv-resolve-posting`, the Postman and
+  `cv-fill-application`: Python 3 with `PyYAML` (`pip install -r requirements.txt`) and
+  a checkout of this repo, since those call scripts at the repo root rather than
+  inside the plugin
 
 ## Status
 
