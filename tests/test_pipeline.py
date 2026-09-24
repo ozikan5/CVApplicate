@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import datetime
 import importlib.util
+import io
 import json
+import os
 from pathlib import Path
+
+import yaml
 
 from job_fetcher.store import save_postings
 
@@ -809,3 +814,206 @@ proposals:
     out = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert out["proposals"][0]["current_outcome"] == "pending"
+
+
+# --- packets / fill-context ------------------------------------------------
+
+
+FILL_PACKET = {
+    "posting_id": "greenhouse-citadel-123",
+    "company": "Citadel",
+    "role": "SWE Intern",
+    "url": "https://job-boards.greenhouse.io/citadel/jobs/123",
+    "industry_branch": "quant-trading",
+    "created": datetime.date(2026, 9, 20),
+    "cv_pdf": "Ozan_Kan_CV_Citadel.pdf",
+    "cv_tex": "cv.tex",
+    "compile": "ok",
+    "applied": False,
+}
+
+ANSWERS_YAML = """
+contact:
+  first_name: "Ozan"
+  phone: ""
+work_authorization:
+  requires_sponsorship_now: "No"
+learned: []
+"""
+
+
+def _fill_project(tmp_path, monkeypatch):
+    _chdir_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "ANSWERS_PATH", str(tmp_path / "answers.local.yaml"))
+
+
+def _make_packet(tmp_path, slug="citadel-swe-intern", packet=None, pdf=True,
+                 jd="Build low-latency systems."):
+    directory = tmp_path / "outbox" / slug
+    directory.mkdir(parents=True)
+    data = dict(FILL_PACKET if packet is None else packet)
+    (directory / "packet.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    if pdf:
+        (directory / data.get("cv_pdf", "cv.pdf")).write_bytes(b"%PDF-1.4")
+    if jd is not None:
+        (directory / "jd.txt").write_text(jd, encoding="utf-8")
+    return directory
+
+
+def _write_answers(tmp_path, text=ANSWERS_YAML):
+    (tmp_path / "answers.local.yaml").write_text(text, encoding="utf-8")
+
+
+def test_packets_lists_each_packet(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+
+    assert cli.main(["pipeline.py", "packets"]) == 0
+
+    entry = json.loads(capsys.readouterr().out)["packets"][0]
+    assert entry["slug"] == "citadel-swe-intern"
+    assert entry["posting_id"] == "greenhouse-citadel-123"
+    assert entry["company"] == "Citadel"
+    assert entry["created"] == "2026-09-20"
+    assert entry["applied"] is False
+    assert entry["filled"] is None
+
+
+def test_packets_with_no_outbox(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+
+    assert cli.main(["pipeline.py", "packets"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"packets": []}
+
+
+def test_packets_reports_an_unreadable_packet_instead_of_dropping_it(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    broken = tmp_path / "outbox" / "broken"
+    broken.mkdir(parents=True)
+    (broken / "packet.yaml").write_text("posting_id: [unclosed\n", encoding="utf-8")
+    (tmp_path / "outbox" / "empty").mkdir()
+    listed = tmp_path / "outbox" / "listed"
+    listed.mkdir()
+    (listed / "packet.yaml").write_text("- not\n- a mapping\n", encoding="utf-8")
+
+    assert cli.main(["pipeline.py", "packets"]) == 0
+
+    entries = {e["slug"]: e for e in json.loads(capsys.readouterr().out)["packets"]}
+    assert entries["broken"]["error"] == "packet.yaml is not valid YAML"
+    assert entries["empty"]["error"] == "packet.yaml is missing"
+    assert entries["listed"]["error"] == "packet.yaml is not a mapping"
+
+
+def test_fill_context_gathers_the_session(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    directory = _make_packet(tmp_path)
+    _write_answers(tmp_path)
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 0
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["slug"] == "citadel-swe-intern"
+    assert context["packet"]["company"] == "Citadel"
+    assert context["packet"]["created"] == "2026-09-20"
+    assert os.path.isabs(context["cv_pdf_path"])
+    assert os.path.samefile(context["cv_pdf_path"], directory / "Ozan_Kan_CV_Citadel.pdf")
+    assert context["jd_text"] == "Build low-latency systems."
+    assert context["answers"]["contact"]["phone"] == ""
+    assert context["answers"]["work_authorization"]["requires_sponsorship_now"] == "No"
+    assert context["warnings"] == []
+
+
+def test_fill_context_warns_without_an_answers_file(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 0
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["answers"] is None
+    assert len(context["warnings"]) == 1
+    assert "answers.local.yaml" in context["warnings"][0]
+
+
+def test_fill_context_warns_on_an_applied_packet_and_a_failed_compile(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path, packet=dict(FILL_PACKET, applied=True, compile="failed"))
+    _write_answers(tmp_path)
+
+    cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"])
+
+    warnings = json.loads(capsys.readouterr().out)["warnings"]
+    assert len(warnings) == 2
+    assert any("applied" in w for w in warnings)
+    assert any("compile" in w for w in warnings)
+
+
+def test_fill_context_without_a_pdf(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path, pdf=False)
+    _write_answers(tmp_path)
+
+    cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"])
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["cv_pdf_path"] is None
+    assert any("PDF" in w for w in context["warnings"])
+
+
+def test_fill_context_refuses_a_cv_pdf_path_outside_the_packet(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path, packet=dict(FILL_PACKET, cv_pdf="../../secret.pdf"), pdf=False)
+    (tmp_path / "secret.pdf").write_bytes(b"%PDF-1.4")
+    _write_answers(tmp_path)
+
+    cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"])
+
+    assert json.loads(capsys.readouterr().out)["cv_pdf_path"] is None
+
+
+def test_fill_context_without_a_jd(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path, jd=None)
+    _write_answers(tmp_path)
+
+    cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"])
+
+    context = json.loads(capsys.readouterr().out)
+    assert context["jd_text"] is None
+    assert any("jd.txt" in w for w in context["warnings"])
+
+
+def test_fill_context_unknown_posting_exits_4(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-nobody-1"]) == 4
+    assert capsys.readouterr().out == ""
+
+
+def test_fill_context_invalid_id_exits_2(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+
+    assert cli.main(["pipeline.py", "fill-context", "bad id!"]) == 2
+    assert capsys.readouterr().out == ""
+
+
+def test_fill_context_invalid_answers_file_exits_2_without_echoing_values(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path)
+    _write_answers(tmp_path, "contact:\n  password: hunter2-XYZ\n")
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "hunter2-XYZ" not in captured.err
+
+
+def test_fill_context_two_packets_claiming_one_posting_exits_2(tmp_path, monkeypatch, capsys):
+    _fill_project(tmp_path, monkeypatch)
+    _make_packet(tmp_path, slug="citadel-a")
+    _make_packet(tmp_path, slug="citadel-b")
+
+    assert cli.main(["pipeline.py", "fill-context", "greenhouse-citadel-123"]) == 2
+    assert capsys.readouterr().out == ""

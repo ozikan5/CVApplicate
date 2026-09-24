@@ -7,6 +7,9 @@ Usage:
     ./pipeline.py packet-path <posting-id>
     ./pipeline.py mail
     ./pipeline.py review
+    ./pipeline.py packets
+    ./pipeline.py fill-context <posting-id>
+    ./pipeline.py remember
 
 This exists so the unattended skill runners never need a
 `Bash(python3 -c:*)` grant (arbitrary code execution, and a hole in the
@@ -31,6 +34,15 @@ mail         Reads recruiting mail since the earliest logged application,
 review       Reads outcomes.pending.yaml and the application log, and prints
              each proposal annotated with current_outcome, application_missing,
              regresses and default_answer. Read-only.
+packets      Lists outbox/*/packet.yaml as {"packets": [...]}: slug, path,
+             posting_id, company, role, created, compile, applied, filled — or
+             slug, path and error for a packet that cannot be read.
+fill-context Prints everything a form-filling session needs for one packet:
+             slug, path, packet, cv_pdf_path (absolute, or null), jd_text,
+             answers (answers.local.yaml, or null) and warnings.
+remember     Reads {"question": ..., "answer": ...} as JSON on stdin and saves
+             it to answers.local.yaml's learned list, replacing an entry with
+             the same normalised question. Prints {"remembered": {...}}.
 
 <posting-id> is validated against [A-Za-z0-9._-]+ before it touches
 anything else — ATS-supplied ids are not guaranteed to be shell-safe, so
@@ -39,8 +51,10 @@ this is enforced rather than assumed.
 Human-readable messages go to stderr; stdout is always machine-readable
 JSON (and only JSON — nothing is printed on a usage or validation failure).
 
-Exit codes: 0 = success, 2 = usage, invalid posting id, missing credentials or
-an unreadable log, 4 = posting id not found, or the mail server unreachable.
+Exit codes: 0 = success, 2 = usage, invalid posting id, missing credentials,
+an unreadable log, an invalid answers file, or internal data inconsistency,
+4 = posting id not found, or the mail server unreachable, or no packet for
+the posting id.
 """
 
 from __future__ import annotations
@@ -57,6 +71,7 @@ import sys
 import yaml
 
 from job_fetcher import mailbox, outcomes
+from job_fetcher.answers import AnswersError, load_answers, remember
 from job_fetcher.env import load_dotenv
 from job_fetcher.profile import load_profile, authorization_verdict, location_verdict
 from job_fetcher.store import load_postings
@@ -68,12 +83,16 @@ USAGE = (
     "       pipeline.py packet-path <posting-id>\n"
     "       pipeline.py mail\n"
     "       pipeline.py review\n"
+    "       pipeline.py packets\n"
+    "       pipeline.py fill-context <posting-id>\n"
+    "       pipeline.py remember\n"
 )
 
 QUEUE_PATH = "queue.local.txt"
 POSTINGS_PATH = "postings.local.yaml"
 PROFILE_PATH = "profile.local.yaml"
 OUTBOX_PATH = "outbox"
+ANSWERS_PATH = "answers.local.yaml"
 
 LOG_REF = "main:applications/log.yaml"
 PENDING_PATH = "outcomes.pending.yaml"
@@ -386,6 +405,114 @@ def review_mode() -> int:
     return 0
 
 
+PACKET_SUMMARY_FIELDS = (
+    "posting_id", "company", "role", "created", "compile", "applied", "filled",
+)
+
+
+def _read_packet_yaml(slug: str):
+    """Return (data, error) for outbox/<slug>/packet.yaml; exactly one is None."""
+    path = os.path.join(OUTBOX_PATH, slug, "packet.yaml")
+    if not os.path.isfile(path):
+        return None, "packet.yaml is missing"
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = yaml.safe_load(handle)
+    except yaml.YAMLError:
+        return None, "packet.yaml is not valid YAML"
+    if not isinstance(data, dict):
+        return None, "packet.yaml is not a mapping"
+    return data, None
+
+
+def packets_mode() -> int:
+    entries = []
+    for slug in sorted(_existing_outbox_slugs()):
+        entry = {"slug": slug, "path": os.path.join(OUTBOX_PATH, slug)}
+        data, error = _read_packet_yaml(slug)
+        if error is not None:
+            entry["error"] = error
+        else:
+            for field in PACKET_SUMMARY_FIELDS:
+                entry[field] = data.get(field)
+        entries.append(entry)
+    print(json.dumps({"packets": entries}, default=str))
+    return 0
+
+
+def fill_context_mode(posting_id: str) -> int:
+    if not _validate_posting_id(posting_id):
+        print(
+            f"error: {posting_id!r} is not a valid posting id "
+            "(expected only letters, digits, '.', '_', '-')",
+            file=sys.stderr,
+        )
+        return 2
+
+    matches = []
+    for slug in sorted(_existing_outbox_slugs()):
+        data, error = _read_packet_yaml(slug)
+        if error is None and data.get("posting_id") == posting_id:
+            matches.append((slug, data))
+    if not matches:
+        print(f"error: no packet for {posting_id!r} in {OUTBOX_PATH}", file=sys.stderr)
+        return 4
+    if len(matches) > 1:
+        slugs = ", ".join(slug for slug, _ in matches)
+        print(f"error: several packets claim {posting_id!r}: {slugs}", file=sys.stderr)
+        return 2
+    slug, packet = matches[0]
+    directory = os.path.join(OUTBOX_PATH, slug)
+
+    try:
+        answers = load_answers(ANSWERS_PATH)
+    except AnswersError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    warnings = []
+    if answers is None:
+        warnings.append(
+            f"{ANSWERS_PATH} not found; copy answers.example.yaml to it. Every "
+            "standing question will be asked instead."
+        )
+    if packet.get("applied") is True:
+        warnings.append("this packet is already marked applied")
+    if packet.get("compile") != "ok":
+        warnings.append(
+            f"compile is {packet.get('compile')!r}, not 'ok'; the PDF was not verified"
+        )
+
+    cv_pdf = packet.get("cv_pdf")
+    cv_pdf_path = None
+    if (isinstance(cv_pdf, str) and cv_pdf and os.path.basename(cv_pdf) == cv_pdf
+            and os.path.isfile(os.path.join(directory, cv_pdf))):
+        cv_pdf_path = os.path.abspath(os.path.join(directory, cv_pdf))
+    else:
+        warnings.append("no CV PDF in the packet; there is nothing to upload")
+
+    jd_path = os.path.join(directory, "jd.txt")
+    jd_text = None
+    if os.path.isfile(jd_path):
+        with open(jd_path, "r", encoding="utf-8", errors="replace") as handle:
+            jd_text = handle.read()
+    else:
+        warnings.append(
+            "jd.txt is missing; free-text answers have no job description to draw on"
+        )
+
+    print(json.dumps({
+        "slug": slug,
+        "path": directory,
+        "packet": packet,
+        "cv_pdf_path": cv_pdf_path,
+        "jd_text": jd_text,
+        "answers": answers,
+        "warnings": warnings,
+    }, default=str))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     arguments = argv[1:]
 
@@ -399,6 +526,10 @@ def main(argv: list[str]) -> int:
         return mail_mode()
     if len(arguments) == 1 and arguments[0] == "review":
         return review_mode()
+    if len(arguments) == 1 and arguments[0] == "packets":
+        return packets_mode()
+    if len(arguments) == 2 and arguments[0] == "fill-context":
+        return fill_context_mode(arguments[1])
 
     print(USAGE, file=sys.stderr, end="")
     return 2
