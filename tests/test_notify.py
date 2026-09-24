@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ssl
+
 import pytest
 
 from job_fetcher import notify
@@ -60,8 +62,8 @@ def test_send_email_uses_starttls_login_and_sends(monkeypatch):
         def __exit__(self, *args):
             return False
 
-        def starttls(self):
-            calls.append(("starttls",))
+        def starttls(self, context=None):
+            calls.append(("starttls", context))
 
         def login(self, user, password):
             calls.append(("login", user, password))
@@ -82,6 +84,12 @@ def test_send_email_uses_starttls_login_and_sends(monkeypatch):
     notify.send_email("Subject line", "Body text", config)
 
     assert ("init", "smtp.example.com", 587) in calls
-    assert ("starttls",) in calls
     assert ("login", "me@example.com", "secret") in calls
     assert ("send", "Subject line", "friend@example.com") in calls
+
+    starttls_calls = [c for c in calls if c[0] == "starttls"]
+    assert len(starttls_calls) == 1
+    tls_context = starttls_calls[0][1]
+    assert tls_context is not None
+    assert tls_context.verify_mode == ssl.CERT_REQUIRED
+    assert tls_context.check_hostname is True

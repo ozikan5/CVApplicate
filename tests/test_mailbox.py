@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import locale
 import re
+import ssl
 
 import pytest
 
@@ -332,3 +333,28 @@ def test_connect_maps_a_refused_connection(monkeypatch):
 
     with pytest.raises(mailbox.MailboxUnavailable):
         mailbox.connect("imap.gmail.com", "me@gmail.com", "pw")
+
+
+class _FakeSSLRecordingContext:
+    """Records the ssl_context kwarg IMAP4_SSL was constructed with."""
+
+    def __init__(self, *args, **kwargs):
+        self.received_ssl_context = kwargs.get("ssl_context")
+        _FakeSSLRecordingContext.last_instance = self
+
+    def login(self, user, password):
+        return "OK", [b"success"]
+
+
+def test_connect_verifies_tls_certificates(monkeypatch):
+    """imaplib.IMAP4_SSL with no ssl_context falls back to an UNVERIFIED
+    context on every Python version. connect() must pass a verifying one
+    explicitly, or a hostile network can intercept the app password."""
+    monkeypatch.setattr(mailbox.imaplib, "IMAP4_SSL", _FakeSSLRecordingContext)
+
+    mailbox.connect("imap.gmail.com", "me@gmail.com", "pw")
+
+    context = _FakeSSLRecordingContext.last_instance.received_ssl_context
+    assert context is not None
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True

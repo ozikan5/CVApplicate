@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 
@@ -41,6 +42,6 @@ def send_email(subject: str, body: str, config: dict) -> None:
     message.set_content(body)
 
     with smtplib.SMTP(config["host"], config["port"], timeout=10) as server:
-        server.starttls()
+        server.starttls(context=ssl.create_default_context())
         server.login(config["user"], config["password"])
         server.send_message(message)

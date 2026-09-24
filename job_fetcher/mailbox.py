@@ -12,6 +12,7 @@ import hashlib
 import imaplib
 import re
 import socket
+import ssl
 from email import policy
 from email.header import decode_header, make_header
 from email.utils import parseaddr, parsedate_to_datetime
@@ -187,7 +188,7 @@ def fetch_parsed(conn, seqs, spec):
 def connect(host, user, password):
     """Log in over IMAPS. Error messages never include the password."""
     try:
-        conn = imaplib.IMAP4_SSL(host, timeout=30)
+        conn = imaplib.IMAP4_SSL(host, timeout=30, ssl_context=ssl.create_default_context())
         conn.login(user, password)
         return conn
     except imaplib.IMAP4.error:
