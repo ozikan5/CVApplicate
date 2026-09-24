@@ -42,11 +42,18 @@ None. Everything comes from `python3 pipeline.py mail`.
      `application_id: null` and copy all of them into `candidates`. **Never guess
      between applications at the same company.**
    - If it is empty — typically assessment-platform mail — identify the employer from
-     the `body` and match it against `applications`. If you cannot, leave
-     `application_id: null` with an empty `candidates` list.
+     the `body` and match it against `applications`. If that employer has several
+     applications, the rule above applies unchanged: pick one only when the message
+     names the role, team or requisition number of exactly one; otherwise leave
+     `application_id: null` and list every matching application in `candidates`. If
+     you cannot identify the employer at all, leave `application_id: null` with an
+     empty `candidates` list.
 5. Assign `confidence`: `high` only when both the outcome and the application are
    unambiguous; `medium` when one of them needed judgement; `low` when you are unsure.
-6. Write `outcomes.pending.yaml` in **one** edit:
+6. Write `outcomes.pending.yaml` in **one** tool call — build the whole new file
+   (existing entries plus the new `seen` ids and new proposals) and write it once.
+   Never append `seen` in one call and proposals in another: a run that dies between
+   them would mark messages seen whose proposals were never recorded.
    - Append every candidate's `message_id` to `seen` — outcomes and non-outcomes alike,
      so nothing is ever reprocessed.
    - Append one proposal per outcome message, in this shape:
