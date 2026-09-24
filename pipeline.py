@@ -5,6 +5,7 @@ Usage:
     ./pipeline.py queue
     ./pipeline.py gate <posting-id>
     ./pipeline.py packet-path <posting-id>
+    ./pipeline.py mail
 
 This exists so the unattended skill runners never need a
 `Bash(python3 -c:*)` grant (arbitrary code execution, and a hole in the
@@ -21,6 +22,11 @@ gate         Loads profile.local.yaml and the named posting from
 packet-path  Computes the packet directory for the named posting via
              job_fetcher.tailor.packet_slug against outbox/'s current
              entries and prints {"slug": ..., "path": ..., "exists": bool}.
+mail         Reads recruiting mail since the earliest logged application,
+             read-only (EXAMINE, BODY.PEEK), and prints the candidates that
+             pass the prefilter as JSON: folder, since, warnings, applications,
+             candidates, remaining. Credentials come from .env and are never
+             printed.
 
 <posting-id> is validated against [A-Za-z0-9._-]+ before it touches
 anything else — ATS-supplied ids are not guaranteed to be shell-safe, so
@@ -29,19 +35,23 @@ this is enforced rather than assumed.
 Human-readable messages go to stderr; stdout is always machine-readable
 JSON (and only JSON — nothing is printed on a usage or validation failure).
 
-Exit codes: 0 = success, 2 = usage or invalid posting id, 4 = posting id not
-found in postings.local.yaml.
+Exit codes: 0 = success, 2 = usage, invalid posting id, missing credentials or
+an unreadable log, 4 = posting id not found, or the mail server unreachable.
 """
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
+import subprocess
 import sys
 
 import yaml
 
+from job_fetcher import mailbox, outcomes
+from job_fetcher.env import load_dotenv
 from job_fetcher.profile import load_profile, authorization_verdict, location_verdict
 from job_fetcher.store import load_postings
 from job_fetcher.tailor import packet_slug, parse_queue
@@ -50,12 +60,21 @@ USAGE = (
     "usage: pipeline.py queue\n"
     "       pipeline.py gate <posting-id>\n"
     "       pipeline.py packet-path <posting-id>\n"
+    "       pipeline.py mail\n"
 )
 
 QUEUE_PATH = "queue.local.txt"
 POSTINGS_PATH = "postings.local.yaml"
 PROFILE_PATH = "profile.local.yaml"
 OUTBOX_PATH = "outbox"
+
+LOG_REF = "main:applications/log.yaml"
+PENDING_PATH = "outcomes.pending.yaml"
+ENV_PATH = ".env"
+MAIL_CANDIDATE_LIMIT = 200
+DEFAULT_IMAP_HOST = "imap.gmail.com"
+
+_connect = mailbox.connect
 
 _POSTING_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -173,6 +192,117 @@ def packet_path_mode(posting_id: str) -> int:
     return 0
 
 
+def _read_log_text() -> str:
+    """Read the application log from main.
+
+    applications/log.yaml is tracked on main only and deliberately absent from
+    industry branches, so reading it as a path would fail whenever an industry
+    branch is checked out.
+    """
+    result = subprocess.run(["git", "show", LOG_REF], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise FileNotFoundError(f"{LOG_REF} not found: {result.stderr.strip()}")
+    return result.stdout
+
+
+def _load_applications() -> list:
+    entries = yaml.safe_load(_read_log_text()) or []
+    applications = []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("id"):
+            applications.append({
+                "id": entry["id"],
+                "company": entry.get("company", ""),
+                "role": entry.get("role", ""),
+                "outcome": entry.get("outcome") or "pending",
+                "date_applied": entry.get("date_applied"),
+            })
+    return applications
+
+
+def _as_date(value):
+    if isinstance(value, datetime.date):
+        return value
+    return datetime.date.fromisoformat(str(value))
+
+
+def mail_mode() -> int:
+    load_dotenv(ENV_PATH)
+    user = os.environ.get("SMTP_USER")
+    password = os.environ.get("SMTP_APP_PASSWORD")
+    if not user or not password:
+        print("error: SMTP_USER and SMTP_APP_PASSWORD must be set in .env", file=sys.stderr)
+        return 2
+    host = os.environ.get("IMAP_HOST") or DEFAULT_IMAP_HOST
+
+    try:
+        applications = _load_applications()
+        pending = outcomes.load_pending(PENDING_PATH)
+    except (FileNotFoundError, ValueError, yaml.YAMLError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    dated = [a for a in applications if a.get("date_applied")]
+    if not dated:
+        print(json.dumps({"folder": None, "since": None, "warnings": [],
+                          "applications": [], "candidates": [], "remaining": 0}))
+        return 0
+    since = min(_as_date(a["date_applied"]) for a in dated)
+    seen = outcomes.seen_ids(pending)
+
+    conn = None
+    try:
+        conn = _connect(host, user, password)
+        folder, warnings = mailbox.open_folder(conn)
+        seqs = mailbox.search_since(conn, since)
+        headers = mailbox.fetch_parsed(conn, seqs, mailbox.HEADERS_SPEC)
+        own = user.lower()
+        fresh = [h for h in headers
+                 if h.get("from_address") != own and h["message_id"] not in seen]
+        matched = [h for h in fresh if outcomes.is_candidate(h, applications)]
+        selected = matched[:MAIL_CANDIDATE_LIMIT]
+        bodies = {}
+        if selected:
+            for full in mailbox.fetch_parsed(conn, [h["seq"] for h in selected],
+                                             mailbox.FULL_SPEC):
+                bodies[full["seq"]] = full
+    except mailbox.MailboxError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return error.exit_code
+    except mailbox.MailboxUnavailable as error:
+        print(f"error: {error}", file=sys.stderr)
+        return error.exit_code
+    finally:
+        if conn is not None:
+            try:
+                conn.logout()
+            except Exception:
+                pass
+
+    candidates = []
+    for header in selected:
+        full = bodies.get(header["seq"], header)
+        candidates.append({
+            "message_id": header["message_id"],
+            "from": header["from"],
+            "received": header["received"],
+            "subject": header["subject"],
+            "body": full.get("body", ""),
+            "candidate_ids": outcomes.candidate_applications(header, applications),
+        })
+
+    print(json.dumps({
+        "folder": folder,
+        "since": since.isoformat(),
+        "warnings": warnings,
+        "applications": [{k: a[k] for k in ("id", "company", "role", "outcome")}
+                         for a in applications],
+        "candidates": candidates,
+        "remaining": len(matched) - len(selected),
+    }, default=str))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     arguments = argv[1:]
 
@@ -182,6 +312,8 @@ def main(argv: list[str]) -> int:
         return gate_mode(arguments[1])
     if len(arguments) == 2 and arguments[0] == "packet-path":
         return packet_path_mode(arguments[1])
+    if len(arguments) == 1 and arguments[0] == "mail":
+        return mail_mode()
 
     print(USAGE, file=sys.stderr, end="")
     return 2
