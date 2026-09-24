@@ -438,6 +438,35 @@ def packets_mode() -> int:
     return 0
 
 
+def _today() -> datetime.date:
+    return datetime.date.today()
+
+
+REMEMBER_USAGE = (
+    'error: remember expects a JSON object on stdin: '
+    '{"question": "...", "answer": "..."}'
+)
+
+
+def remember_mode() -> int:
+    try:
+        request = json.loads(sys.stdin.read())
+    except ValueError:
+        print(REMEMBER_USAGE, file=sys.stderr)
+        return 2
+    if not isinstance(request, dict):
+        print(REMEMBER_USAGE, file=sys.stderr)
+        return 2
+    try:
+        entry = remember(ANSWERS_PATH, request.get("question"), request.get("answer"),
+                         _today())
+    except AnswersError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    print(json.dumps({"remembered": entry}))
+    return 0
+
+
 def fill_context_mode(posting_id: str) -> int:
     if not _validate_posting_id(posting_id):
         print(
@@ -546,6 +575,8 @@ def main(argv: list[str]) -> int:
         return packets_mode()
     if len(arguments) == 2 and arguments[0] == "fill-context":
         return fill_context_mode(arguments[1])
+    if len(arguments) == 1 and arguments[0] == "remember":
+        return remember_mode()
 
     print(USAGE, file=sys.stderr, end="")
     return 2

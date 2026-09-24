@@ -1093,3 +1093,69 @@ def test_packet_path_with_invalid_yaml_packet_in_outbox_does_not_crash(tmp_path,
     result = json.loads(capsys.readouterr().out)
     assert result["exists"] is True
     assert result["slug"] == "stripe-abuse-investigator"
+
+
+# --- remember ---------------------------------------------------------------
+
+
+def _remember(tmp_path, monkeypatch, stdin_text):
+    _fill_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "_today", lambda: datetime.date(2026, 9, 24))
+    monkeypatch.setattr("sys.stdin", io.StringIO(stdin_text))
+    return cli.main(["pipeline.py", "remember"])
+
+
+def test_remember_saves_an_answer(tmp_path, monkeypatch, capsys):
+    request = {"question": "Open to relocation?", "answer": "Yes, anywhere in the US"}
+
+    assert _remember(tmp_path, monkeypatch, json.dumps(request)) == 0
+
+    assert json.loads(capsys.readouterr().out) == {"remembered": {
+        "question": "Open to relocation?",
+        "answer": "Yes, anywhere in the US",
+        "added": "2026-09-24",
+    }}
+    saved = yaml.safe_load((tmp_path / "answers.local.yaml").read_text(encoding="utf-8"))
+    assert saved["learned"][0]["answer"] == "Yes, anywhere in the US"
+
+
+def test_remember_keeps_shell_hostile_text_verbatim(tmp_path, monkeypatch, capsys):
+    hostile = "It's \"fine\"; $(rm -rf /) `whoami` && echo done"
+
+    assert _remember(tmp_path, monkeypatch,
+                     json.dumps({"question": "Anything else?", "answer": hostile})) == 0
+
+    saved = yaml.safe_load((tmp_path / "answers.local.yaml").read_text(encoding="utf-8"))
+    assert saved["learned"][0]["answer"] == hostile
+
+
+def test_remember_rejects_non_json(tmp_path, monkeypatch, capsys):
+    assert _remember(tmp_path, monkeypatch, "not json") == 2
+    assert capsys.readouterr().out == ""
+
+
+def test_remember_rejects_a_json_value_that_is_not_an_object(tmp_path, monkeypatch, capsys):
+    assert _remember(tmp_path, monkeypatch, "[1, 2]") == 2
+    assert capsys.readouterr().out == ""
+
+
+def test_remember_refuses_a_forbidden_question(tmp_path, monkeypatch, capsys):
+    request = {"question": "Your SSN", "answer": "123-45-6789"}
+
+    assert _remember(tmp_path, monkeypatch, json.dumps(request)) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "123-45-6789" not in captured.err
+    assert not (tmp_path / "answers.local.yaml").exists()
+
+
+def test_remember_into_an_invalid_answers_file_exits_2(tmp_path, monkeypatch, capsys):
+    _write_answers(tmp_path, "contact:\n  password: hunter2-XYZ\n")
+
+    assert _remember(tmp_path, monkeypatch,
+                     json.dumps({"question": "Relocate?", "answer": "Yes"})) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "hunter2-XYZ" not in captured.err
