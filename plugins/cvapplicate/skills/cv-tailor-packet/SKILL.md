@@ -42,7 +42,11 @@ not granted those. Recording that you applied is `cv-log-application`'s job.
 5. Score the branch's `cv.tex` as `cv-review` does: **Base Quality /100** (impact 40%,
    competencies 35%, presentation 25%) and **JD Fit /100** (keyword match 40%,
    experience relevance 40%, seniority fit 20%). Keep both as the *before* scores.
-6. Pool weaknesses across both layers, take the worst 3, and edit the worktree's
+5a. Run `cv-review`'s missing-item check (its step 5a) against the experience bank:
+   the master-data entries most relevant to this JD that are absent from `cv.tex`, or
+   named only in the skills section, become weakness candidates too.
+6. Pool weaknesses across both layers and the step 5a candidates, take the worst 3,
+   and edit the worktree's
    `cv.tex` to fix them, staying inside the guardrails. Where the JD wants something
    not grounded in the experience bank, keep the honest wording and record it as a
    gap.

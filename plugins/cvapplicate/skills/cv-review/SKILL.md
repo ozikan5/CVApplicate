@@ -48,7 +48,19 @@ Ask for anything missing before starting:
      responsibilities?
    - Seniority/level fit (20%): does the CV read as the right level for this posting?
    - Compute `total` as the weighted sum.
-6. Pool weaknesses from both layers and pick the worst 3 overall (not 3 from each).
+5a. **Missing-item check.** Scoring only judges what is already on the page, so it
+    cannot notice the strongest evidence being absent. Before choosing fixes, go
+    through `master-data.md` and list the entries (experience items, projects, compact
+    phrasings) that map most directly to this JD's core responsibilities. For each one
+    that does not appear in `cv.tex` in any form, note it as a weakness candidate:
+    "<item> is absent, and it is the best evidence for <JD requirement>." Also flag
+    anything the CV names only in the skills section with no bullet behind it. Give
+    each candidate its weight honestly: a central JD responsibility with no evidence on
+    the page is usually worse than a weak wording.
+6. Pool weaknesses from both layers **and the step 5a candidates**, and pick the worst
+   3 overall (not 3 from each). Adding a missing item usually means cutting or
+   swapping something to stay on one page: prefer to cut what is least relevant to
+   this JD, and say in the report what was cut and why.
 7. Edit `cv.tex` directly to fix those 3 weaknesses, staying within
    `claims-guardrails.md` at all times. If the JD tempts you toward a stronger claim
    than the guardrails permit, or toward something not grounded in `master-data.md`,
