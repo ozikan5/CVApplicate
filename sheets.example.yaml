@@ -1,0 +1,23 @@
+# Copy to sheets.local.yaml (gitignored) to have every logged application also
+# appended to a Google Sheets tracker. Delete the file to turn this off.
+# One-time setup: see "Tracker sheet" in README.md.
+
+# The sheet's URL (or just its id).
+spreadsheet: https://docs.google.com/spreadsheets/d/<id>/edit
+
+# Tab to write to. Omit to use the first tab.
+# tab: Applications
+
+# Value written to the Status column.
+status: Applied
+
+# How Date Applied is written (strftime). The sheet parses it as a date.
+date_format: "%Y-%m-%d"
+
+# Header names in row 1, matched case- and space-insensitively. Only override
+# the ones your sheet names differently. Every other column is left blank.
+# columns:
+#   company: Company
+#   role: Role
+#   date_applied: Date Applied
+#   status: Status

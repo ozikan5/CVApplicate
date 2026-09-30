@@ -111,10 +111,22 @@ Ask for anything missing before starting:
     ```
 13. Commit both on `main`:
     `git add applications/log.yaml master-data.md && git commit -m "Log application: <company> <role>"`
+13a. Record it in the tracker sheet, if one is set up. From the repo root:
+    ```bash
+    python3 pipeline.py sheet-append <<'EOF'
+    {"company": "<company>", "role": "<role>", "date_applied": "<today, YYYY-MM-DD>"}
+    EOF
+    ```
+    - `{"sheet": null}` → no `sheets.local.yaml`; nothing to do, say nothing.
+    - `"appended": true` → mention the tab and row in the final report.
+    - `"appended": false, "reason": "duplicate"` → the row was already there; say so.
+    - Exit 2 or 4 → the git log entry stands; do **not** undo or retry the commit. Show
+      the error line to the user (e.g. "run ./pipeline.py sheet-auth once") and tell
+      them to add the row by hand or rerun this step after fixing it.
 14. Switch back to the industry branch: `git checkout <industry-branch>`.
 15. Report to the user: initial Base/JD Fit scores, the 3 weaknesses fixed and why,
     the final re-scored numbers, confirmation the PDF was delivered (or why not, per
-    step 9a), and — separately — any JD requirement you could not honestly satisfy
+    step 9a), the tracker-sheet result from step 13a if a sheet is configured, and — separately — any JD requirement you could not honestly satisfy
     from `master-data.md` within the guardrails. That gap list is often the most
     useful part of the report: it tells the user what to actually go build or
     document, rather than what to word differently.

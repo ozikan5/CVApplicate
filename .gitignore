@@ -56,3 +56,6 @@ outcomes.pending.yaml
 
 # Temp file left if pipeline.py remember is killed mid-write
 .answers-*.tmp
+
+# Google Sheets refresh token written by pipeline.py sheet-auth
+sheets-token.local.json

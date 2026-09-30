@@ -1225,3 +1225,119 @@ def test_remember_answers_directory_exits_2(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err != ""
+
+
+# --- sheet-append -------------------------------------------------------------
+
+
+def _sheet_project(tmp_path, monkeypatch, *, config=True, token=True, env=True):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "SHEETS_CONFIG_PATH", str(tmp_path / "sheets.local.yaml"))
+    monkeypatch.setattr(cli, "SHEETS_TOKEN_PATH", str(tmp_path / "sheets-token.local.json"))
+    monkeypatch.setattr(cli, "ENV_PATH", str(tmp_path / ".env"))
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_SECRET", raising=False)
+    if config:
+        (tmp_path / "sheets.local.yaml").write_text(
+            "spreadsheet: https://docs.google.com/spreadsheets/d/sheet-id/edit\n",
+            encoding="utf-8")
+    if token:
+        (tmp_path / "sheets-token.local.json").write_text(
+            json.dumps({"refresh_token": "refresh"}), encoding="utf-8")
+    if env:
+        (tmp_path / ".env").write_text(
+            "GOOGLE_OAUTH_CLIENT_ID=cid\nGOOGLE_OAUTH_CLIENT_SECRET=secret\n",
+            encoding="utf-8")
+
+
+class _SheetTransport:
+    def __init__(self, values):
+        self.values = values
+        self.writes = []
+
+    def __call__(self, method, url, headers=None, body=None):
+        if url.startswith("https://oauth2.googleapis.com/token"):
+            return 200, {"access_token": "a"}
+        if method == "GET" and "/values/" not in url:
+            return 200, {"sheets": [{"properties": {"title": "Sheet1"}}]}
+        if method == "GET":
+            return 200, {"values": self.values}
+        self.writes.append(json.loads(body))
+        return 200, {}
+
+
+def _sheet_append(monkeypatch, stdin_text, transport=None):
+    if transport is not None:
+        monkeypatch.setattr(cli, "_sheet_transport", transport)
+    monkeypatch.setattr("sys.stdin", io.StringIO(stdin_text))
+    return cli.main(["pipeline.py", "sheet-append"])
+
+
+REQUEST = json.dumps({"company": "Two Sigma", "role": "SWE Intern",
+                      "date_applied": "2026-09-30"})
+
+
+def test_sheet_append_writes_a_row(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch)
+    transport = _SheetTransport([["Company", "Role", "Date Applied", "Status", "Notes"]])
+
+    assert _sheet_append(monkeypatch, REQUEST, transport) == 0
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["sheet"]["appended"] is True
+    assert out["sheet"]["row"] == 2
+    assert transport.writes[0]["values"] == [
+        ["Two Sigma", "SWE Intern", "2026-09-30", "Applied", ""]]
+
+
+def test_sheet_append_without_config_is_a_quiet_no_op(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch, config=False)
+
+    assert _sheet_append(monkeypatch, REQUEST) == 0
+
+    assert json.loads(capsys.readouterr().out) == {"sheet": None}
+
+
+def test_sheet_append_without_client_credentials_fails(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch, env=False)
+
+    assert _sheet_append(monkeypatch, REQUEST) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "GOOGLE_OAUTH_CLIENT_ID" in captured.err
+
+
+def test_sheet_append_without_a_token_says_to_authorise(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch, token=False)
+
+    assert _sheet_append(monkeypatch, REQUEST) == 2
+
+    assert "sheet-auth" in capsys.readouterr().err
+
+
+def test_sheet_append_rejects_bad_stdin(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch)
+
+    assert _sheet_append(monkeypatch, "[1]") == 2
+    assert capsys.readouterr().out == ""
+
+
+def test_sheet_append_reports_a_sheet_problem(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch)
+    transport = _SheetTransport([["Company", "Notes"]])
+
+    assert _sheet_append(monkeypatch, REQUEST, transport) == 4
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Role" in captured.err
+    assert transport.writes == []
+
+
+def test_sheet_auth_without_client_credentials_fails(tmp_path, monkeypatch, capsys):
+    _sheet_project(tmp_path, monkeypatch, env=False)
+
+    assert cli.main(["pipeline.py", "sheet-auth"]) == 2
+
+    assert "GOOGLE_OAUTH_CLIENT_ID" in capsys.readouterr().err

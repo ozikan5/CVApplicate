@@ -320,6 +320,38 @@ Fill the Citadel application
 When a form asks something new, it asks you and offers to remember the answer for
 next time. After you submit, run `cv-log-application`.
 
+## Tracker sheet
+
+If you keep a Google Sheets tracker, `cv-review` and `cv-log-application` also add a
+row to it every time they log an application: Company, Role, Date Applied and Status
+(`Applied`), each placed under the header of that name. Other columns are left blank
+for you. The row goes below the last filled Company cell, and if the same company,
+role and date are already there, nothing is written. If the sheet can't be reached,
+the git log entry still stands and the skill tells you what to fix.
+
+One-time setup (about 5 minutes):
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a
+   project (or reuse one), enable the **Google Sheets API**, and configure the OAuth
+   consent screen as **External** with yourself added as a test user.
+2. Under **Credentials**, create an **OAuth client ID** of type **Desktop app**. Put
+   its id and secret in `.env` as `GOOGLE_OAUTH_CLIENT_ID` and
+   `GOOGLE_OAUTH_CLIENT_SECRET` (see `.env.example`).
+3. Copy `sheets.example.yaml` to `sheets.local.yaml` and paste your sheet's URL.
+   Override a header name there only if yours differs.
+4. Run `./pipeline.py sheet-auth` and approve access in the browser tab it opens. It
+   saves a refresh token to `sheets-token.local.json` (gitignored, mode 600).
+
+Check it without logging anything:
+
+```
+echo '{"company": "Test", "role": "Test", "date_applied": "2026-01-01"}' | ./pipeline.py sheet-append
+```
+
+then delete the test row. While the consent screen is in **Testing** mode Google expires
+the refresh token after 7 days; publish the app (no review is needed for your own
+account) to keep it, or rerun `sheet-auth` when it asks.
+
 ## Tracking outcomes from your inbox
 
 `postman.sh` reads recruiting mail since your earliest logged application and writes

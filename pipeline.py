@@ -10,6 +10,8 @@ Usage:
     ./pipeline.py packets
     ./pipeline.py fill-context <posting-id>
     ./pipeline.py remember
+    ./pipeline.py sheet-append
+    ./pipeline.py sheet-auth
 
 This exists so the unattended skill runners never need a
 `Bash(python3 -c:*)` grant (arbitrary code execution, and a hole in the
@@ -43,6 +45,16 @@ fill-context Prints everything a form-filling session needs for one packet:
 remember     Reads {"question": ..., "answer": ...} as JSON on stdin and saves
              it to answers.local.yaml's learned list, replacing an entry with
              the same normalised question. Prints {"remembered": {...}}.
+sheet-append Reads {"company": ..., "role": ..., "date_applied": "YYYY-MM-DD"}
+             as JSON on stdin and appends one row to the Google Sheets tracker
+             named in sheets.local.yaml, placing each value under its header
+             and leaving other columns blank. Prints {"sheet": {"appended":
+             true, "tab", "row", "values"}}, or {"sheet": {"appended": false,
+             "reason": "duplicate", ...}} if that row is already there. With no
+             sheets.local.yaml, prints {"sheet": null} and exits 0.
+sheet-auth   Interactive, run once by the user: opens Google's consent page,
+             catches the redirect on 127.0.0.1, and saves the refresh token to
+             sheets-token.local.json (mode 600). Prints {"authorized": true}.
 
 <posting-id> is validated against [A-Za-z0-9._-]+ before it touches
 anything else — ATS-supplied ids are not guaranteed to be shell-safe, so
@@ -52,25 +64,30 @@ Human-readable messages go to stderr; stdout is always machine-readable
 JSON (and only JSON — nothing is printed on a usage or validation failure).
 
 Exit codes: 0 = success, 2 = usage, invalid posting id, missing credentials,
-an unreadable log, an invalid answers file, or internal data inconsistency,
-4 = posting id not found, or the mail server unreachable, or no packet for
-the posting id.
+an unreadable log, an invalid answers file, an invalid sheets config, or
+internal data inconsistency, 4 = posting id not found, or the mail server
+unreachable, or no packet for the posting id, or the tracker sheet could not
+be read or written.
 """
 
 from __future__ import annotations
 
 import datetime
+import http.server
 import imaplib
 import json
 import os
 import re
 import socket
+import secrets
 import subprocess
 import sys
+import urllib.parse
+import webbrowser
 
 import yaml
 
-from job_fetcher import mailbox, outcomes
+from job_fetcher import mailbox, outcomes, sheets
 from job_fetcher.answers import AnswersError, load_answers, remember
 from job_fetcher.env import load_dotenv
 from job_fetcher.profile import load_profile, authorization_verdict, location_verdict
@@ -86,6 +103,8 @@ USAGE = (
     "       pipeline.py packets\n"
     "       pipeline.py fill-context <posting-id>\n"
     "       pipeline.py remember\n"
+    "       pipeline.py sheet-append\n"
+    "       pipeline.py sheet-auth\n"
 )
 
 QUEUE_PATH = "queue.local.txt"
@@ -93,6 +112,8 @@ POSTINGS_PATH = "postings.local.yaml"
 PROFILE_PATH = "profile.local.yaml"
 OUTBOX_PATH = "outbox"
 ANSWERS_PATH = "answers.local.yaml"
+SHEETS_CONFIG_PATH = "sheets.local.yaml"
+SHEETS_TOKEN_PATH = "sheets-token.local.json"
 
 LOG_REF = "main:applications/log.yaml"
 PENDING_PATH = "outcomes.pending.yaml"
@@ -101,6 +122,7 @@ MAIL_CANDIDATE_LIMIT = 200
 DEFAULT_IMAP_HOST = "imap.gmail.com"
 
 _connect = mailbox.connect
+_sheet_transport = sheets.http_transport
 
 _POSTING_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -471,6 +493,127 @@ def remember_mode() -> int:
     return 0
 
 
+SHEET_APPEND_USAGE = (
+    'error: sheet-append expects a JSON object on stdin: '
+    '{"company": "...", "role": "...", "date_applied": "YYYY-MM-DD"}'
+)
+SHEET_CLIENT_ERROR = (
+    "error: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be set in .env"
+)
+
+
+def _sheet_client():
+    load_dotenv(ENV_PATH)
+    client_id = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+    return client_id, client_secret
+
+
+def sheet_append_mode() -> int:
+    try:
+        request = json.loads(sys.stdin.read())
+    except ValueError:
+        request = None
+    if not isinstance(request, dict):
+        print(SHEET_APPEND_USAGE, file=sys.stderr)
+        return 2
+    try:
+        config = sheets.load_config(SHEETS_CONFIG_PATH)
+    except sheets.SheetsError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    if config is None:
+        print(json.dumps({"sheet": None}))
+        return 0
+    client = _sheet_client()
+    if client is None:
+        print(SHEET_CLIENT_ERROR, file=sys.stderr)
+        return 2
+    try:
+        refresh_token = sheets.load_refresh_token(SHEETS_TOKEN_PATH)
+    except sheets.SheetsError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    if refresh_token is None:
+        print("error: the tracker sheet is not authorized yet; "
+              "run ./pipeline.py sheet-auth once", file=sys.stderr)
+        return 2
+    try:
+        result = sheets.append_application(
+            config, request, client_id=client[0], client_secret=client[1],
+            refresh_token=refresh_token, transport=_sheet_transport)
+    except sheets.SheetsError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 4
+    print(json.dumps({"sheet": result}))
+    return 0
+
+
+def sheet_auth_mode() -> int:
+    client = _sheet_client()
+    if client is None:
+        print(SHEET_CLIENT_ERROR, file=sys.stderr)
+        return 2
+    client_id, client_secret = client
+    verifier, challenge = sheets.pkce_pair()
+    state = secrets.token_urlsafe(24)
+    received = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            if query.get("state", [None])[0] == state:
+                received["code"] = query.get("code", [None])[0]
+                received["error"] = query.get("error", [None])[0]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"Done. You can close this tab and return to the terminal.")
+
+        def log_message(self, *args):
+            pass
+
+    class Server(http.server.HTTPServer):
+        timeout = 300
+
+        def handle_timeout(self):
+            received.setdefault("error", "no response within 5 minutes")
+
+    server = Server(("127.0.0.1", 0), Handler)
+    redirect_uri = f"http://127.0.0.1:{server.server_port}/"
+    url = sheets.consent_url(client_id, redirect_uri, challenge, state)
+    print("Opening Google's consent page. If no browser opens, visit:\n" + url,
+          file=sys.stderr)
+    webbrowser.open(url)
+    try:
+        # Stray requests (a favicon fetch, a wrong state) don't end the wait;
+        # the consent redirect or a 5-minute silence does.
+        while not received:
+            server.handle_request()
+    finally:
+        server.server_close()
+    if not received.get("code"):
+        reason = received.get("error") or "no response"
+        print(f"error: authorization was not completed ({reason})", file=sys.stderr)
+        return 4
+    try:
+        refresh_token = sheets.exchange_code(
+            received["code"], verifier, redirect_uri, client_id, client_secret,
+            transport=_sheet_transport)
+        sheets.save_refresh_token(SHEETS_TOKEN_PATH, refresh_token)
+    except sheets.SheetsError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 4
+    except OSError as error:
+        print(f"error: could not save {SHEETS_TOKEN_PATH}: {error.strerror or error}",
+              file=sys.stderr)
+        return 2
+    print(json.dumps({"authorized": True, "token_path": SHEETS_TOKEN_PATH}))
+    return 0
+
+
 def fill_context_mode(posting_id: str) -> int:
     if not _validate_posting_id(posting_id):
         print(
@@ -581,6 +724,10 @@ def main(argv: list[str]) -> int:
         return fill_context_mode(arguments[1])
     if len(arguments) == 1 and arguments[0] == "remember":
         return remember_mode()
+    if len(arguments) == 1 and arguments[0] == "sheet-append":
+        return sheet_append_mode()
+    if len(arguments) == 1 and arguments[0] == "sheet-auth":
+        return sheet_auth_mode()
 
     print(USAGE, file=sys.stderr, end="")
     return 2

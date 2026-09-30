@@ -51,7 +51,19 @@ tailoring a CV is not applying with it.
    Use the **after** scores: they describe the CV that was actually sent.
 9. Commit: `git add applications/log.yaml && git commit -m "Log application: <company> <role>"`.
 10. Set `applied: true` in the packet's `packet.yaml`.
-11. Report the entry id, the branch, the `cv_commit`, and that
+10a. Record it in the tracker sheet, if one is set up. From the repo root:
+    ```bash
+    python3 pipeline.py sheet-append <<'EOF'
+    {"company": "<company>", "role": "<role>", "date_applied": "<today, YYYY-MM-DD>"}
+    EOF
+    ```
+    - `{"sheet": null}` → no `sheets.local.yaml`; nothing to do, say nothing.
+    - `"appended": true` → mention the tab and row in the final report.
+    - `"appended": false, "reason": "duplicate"` → the row was already there; say so.
+    - Exit 2 or 4 → the git log entry stands; do **not** undo or retry the commit. Show
+      the error line to the user (e.g. "run ./pipeline.py sheet-auth once") and tell
+      them to add the row by hand or rerun this step after fixing it.
+11. Report the entry id, the tracker-sheet result from step 10a, the branch, the `cv_commit`, and that
     `git show <cv_commit>:cv.tex` will recover the exact CV sent.
 
 ## Error handling
