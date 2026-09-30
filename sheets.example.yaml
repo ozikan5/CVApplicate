@@ -11,7 +11,9 @@ spreadsheet: https://docs.google.com/spreadsheets/d/<id>/edit
 # Value written to the Status column.
 status: Applied
 
-# How Date Applied is written (strftime). The sheet parses it as a date.
+# How Date Applied is written (strftime; "%-d" = day without a leading zero,
+# e.g. "%B %-d, %Y" gives "September 6, 2026"). Match what your sheet shows,
+# since duplicate detection compares the text.
 date_format: "%Y-%m-%d"
 
 # Header names in row 1, matched case- and space-insensitively. Only override

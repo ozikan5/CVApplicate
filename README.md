@@ -324,8 +324,9 @@ next time. After you submit, run `cv-log-application`.
 
 If you keep a Google Sheets tracker, `cv-review` and `cv-log-application` also add a
 row to it every time they log an application: Company, Role, Date Applied and Status
-(`Applied`), each placed under the header of that name. Other columns are left blank
-for you. The row goes below the last filled Company cell, and if the same company,
+(`Applied`), each placed under the header of that name. The header row may sit below
+a title block; only those four cells are written, so your other columns, formulas and
+formatting are untouched. The row goes below the last filled Company cell, and if the same company,
 role and date are already there, nothing is written. If the sheet can't be reached,
 the git log entry still stands and the skill tells you what to fix.
 

@@ -1266,6 +1266,7 @@ class _SheetTransport:
         return 200, {}
 
 
+
 def _sheet_append(monkeypatch, stdin_text, transport=None):
     if transport is not None:
         monkeypatch.setattr(cli, "_sheet_transport", transport)
@@ -1286,8 +1287,8 @@ def test_sheet_append_writes_a_row(tmp_path, monkeypatch, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["sheet"]["appended"] is True
     assert out["sheet"]["row"] == 2
-    assert transport.writes[0]["values"] == [
-        ["Two Sigma", "SWE Intern", "2026-09-30", "Applied", ""]]
+    assert [d["values"] for d in transport.writes[0]["data"]] == [
+        [["Two Sigma"]], [["SWE Intern"]], [["2026-09-30"]], [["Applied"]]]
 
 
 def test_sheet_append_without_config_is_a_quiet_no_op(tmp_path, monkeypatch, capsys):

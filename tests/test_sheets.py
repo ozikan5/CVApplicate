@@ -80,39 +80,61 @@ COLUMNS = {
 }
 
 
-def test_build_row_places_values_under_their_headers_and_blanks_the_rest():
-    headers = ["Company", "Link", " role ", "Status", "Notes", "Date applied"]
-    row = sheets.build_row(headers, COLUMNS, {
-        "company": "Two Sigma",
-        "role": "SWE Intern",
-        "date_applied": "2026-09-30",
-        "status": "Applied",
-    })
-    assert row == ["Two Sigma", "", "SWE Intern", "Applied", "", "2026-09-30"]
+RECORD = {"company": "a", "role": "b", "date_applied": "c", "status": "d"}
 
 
-def test_build_row_names_every_missing_header():
+def test_find_header_row_below_a_title_block_with_an_offset_column():
+    values = [
+        [],
+        ["", "Job Application Tracker", "", "", "", "Total Applications"],
+        ["", "", "", "", "", "23"],
+        [],
+        ["", "Company", " role ", "Date applied", "Status", "Notes"],
+        ["", "Google", "SWE", "July 22, 2026", "Applied"],
+    ]
+    row, indexes = sheets.find_header_row(values, COLUMNS)
+    assert row == 5
+    assert indexes == {"company": 1, "role": 2, "date_applied": 3, "status": 4}
+
+
+def test_find_header_row_names_what_the_closest_row_is_missing():
     with pytest.raises(SheetsError) as excinfo:
-        sheets.build_row(["Company", "Notes"], COLUMNS, {
-            "company": "a", "role": "b", "date_applied": "c", "status": "d",
-        })
+        sheets.find_header_row([["Title"], ["Company", "Notes"]], COLUMNS)
     message = str(excinfo.value)
+    assert "row 2" in message
     assert "Role" in message and "Date Applied" in message and "Status" in message
 
 
-def test_build_row_rejects_duplicate_headers():
+def test_find_header_row_with_no_candidate():
+    with pytest.raises(SheetsError, match="no header row"):
+        sheets.find_header_row([["Title"], ["x", "y"]], COLUMNS)
+
+
+def test_find_header_row_rejects_duplicate_headers():
     with pytest.raises(SheetsError):
-        sheets.build_row(["Company", "Role", "Company", "Date Applied", "Status"],
-                         COLUMNS, {"company": "a", "role": "b",
-                                   "date_applied": "c", "status": "d"})
+        sheets.find_header_row(
+            [["Company", "Role", "Company", "Date Applied", "Status"]], COLUMNS)
+
+
+def test_build_cells_touches_only_the_configured_columns():
+    indexes = {"company": 1, "role": 2, "date_applied": 3, "status": 4}
+    assert sheets.build_cells(indexes, {
+        "company": "Two Sigma", "role": "SWE Intern",
+        "date_applied": "September 30, 2026", "status": "Applied",
+    }) == {1: "Two Sigma", 2: "SWE Intern", 3: "September 30, 2026", 4: "Applied"}
 
 
 @pytest.mark.parametrize("value", ["=HYPERLINK(\"x\")", "+1", "-2", "@x"])
-def test_build_row_neutralises_formula_prefixes(value):
-    row = sheets.build_row(["Company", "Role", "Date Applied", "Status"], COLUMNS, {
-        "company": value, "role": "r", "date_applied": "d", "status": "s",
-    })
-    assert row[0] == "'" + value
+def test_build_cells_neutralises_formula_prefixes(value):
+    cells = sheets.build_cells({"company": 0, "role": 1, "date_applied": 2, "status": 3},
+                               dict(RECORD, company=value))
+    assert cells[0] == "'" + value
+
+
+def test_format_date_supports_an_unpadded_day():
+    day = datetime.date(2026, 9, 6)
+    assert sheets.format_date(day, "%B %-d, %Y") == "September 6, 2026"
+    assert sheets.format_date(day, "%Y-%m-%d") == "2026-09-06"
 
 
 def test_column_letter():
@@ -137,6 +159,12 @@ def test_next_row_follows_the_last_filled_company_cell():
 
 def test_next_row_on_header_only_sheet():
     assert sheets.next_row([["Company", "Role"]], 0) == 2
+
+
+def test_next_row_ignores_rows_above_the_header():
+    values = [["", "Title"], ["", "23"], ["", "Company"], ["", "A"], ["", "B"]]
+    assert sheets.next_row(values, 1, header_row=3) == 6
+    assert sheets.next_row(values[:3], 1, header_row=3) == 4
 
 
 def test_find_duplicate_matches_case_and_space_insensitively():
@@ -219,8 +247,8 @@ class FakeTransport:
             return 200, {"sheets": [{"properties": {"title": t}} for t in self.tabs]}
         if method == "GET":
             return 200, {"values": self.values}
-        if method == "PUT":
-            return 200, {"updatedRange": "x", "updatedCells": 4}
+        if method == "POST":
+            return 200, {"totalUpdatedCells": 4}
         return 500, {}
 
 
@@ -242,35 +270,40 @@ def _append(transport, config=CONFIG, application=APPLICATION):
         refresh_token="refresh", transport=transport)
 
 
-def test_append_writes_one_row_after_the_last_company():
+def test_append_writes_only_its_four_cells_after_the_last_company():
     transport = FakeTransport([
-        ["Company", "Link", "Role", "Date Applied", "Status"],
-        ["Citadel", "", "SWE", "2026-08-20", "Applied"],
+        [],
+        ["", "Tracker"],
+        ["", "Company", "Link", "Role", "Date Applied", "Status", "Notes"],
+        ["", "Citadel", "http://x", "SWE", "2026-08-20", "Applied", "note"],
     ])
     result = _append(transport)
-    assert result == {"appended": True, "tab": "Sheet1", "row": 3,
+    assert result == {"appended": True, "tab": "Sheet1", "row": 5,
                       "values": {"Company": "Two Sigma", "Role": "SWE Intern",
                                  "Date Applied": "2026-09-30", "Status": "Applied"}}
     method, url, headers, body = transport.calls[-1]
-    assert method == "PUT"
+    assert method == "POST"
+    assert url.endswith("/sheet-id/values:batchUpdate")
     assert headers["Authorization"] == "Bearer access-1"
-    assert "/values/" + urllib.parse.quote("'Sheet1'!A3:E3", safe="") in url
-    assert "valueInputOption=USER_ENTERED" in url
     assert json.loads(body) == {
-        "range": "'Sheet1'!A3:E3",
-        "majorDimension": "ROWS",
-        "values": [["Two Sigma", "", "SWE Intern", "2026-09-30", "Applied"]],
+        "valueInputOption": "USER_ENTERED",
+        "data": [
+            {"range": "'Sheet1'!B5", "majorDimension": "ROWS", "values": [["Two Sigma"]]},
+            {"range": "'Sheet1'!D5", "majorDimension": "ROWS", "values": [["SWE Intern"]]},
+            {"range": "'Sheet1'!E5", "majorDimension": "ROWS", "values": [["2026-09-30"]]},
+            {"range": "'Sheet1'!F5", "majorDimension": "ROWS", "values": [["Applied"]]},
+        ],
     }
 
 
 def test_append_uses_the_configured_tab_and_date_format():
     transport = FakeTransport([["Company", "Role", "Date Applied", "Status"]],
                               tabs=("Other", "Apps"))
-    config = dict(CONFIG, tab="Apps", date_format="%m/%d/%Y")
+    config = dict(CONFIG, tab="Apps", date_format="%B %-d, %Y")
     result = _append(transport, config)
     assert result["tab"] == "Apps"
     assert result["row"] == 2
-    assert result["values"]["Date Applied"] == "09/30/2026"
+    assert result["values"]["Date Applied"] == "September 30, 2026"
 
 
 def test_append_unknown_tab_fails():
@@ -286,19 +319,29 @@ def test_append_skips_a_duplicate_without_writing():
     ])
     result = _append(transport)
     assert result == {"appended": False, "reason": "duplicate", "tab": "Sheet1", "row": 2}
-    assert all(call[0] != "PUT" for call in transport.calls)
+    assert all(call[0] != "POST" or "batchUpdate" not in call[1]
+               for call in transport.calls)
+
+
+def test_append_duplicate_matches_the_sheets_own_date_format():
+    transport = FakeTransport([
+        ["", "Company", "Role", "Date Applied", "Status"],
+        ["", "Two Sigma", "SWE Intern", "September 30, 2026", "Applied"],
+    ])
+    result = _append(transport, dict(CONFIG, date_format="%B %-d, %Y"))
+    assert result["appended"] is False and result["row"] == 2
 
 
 def test_append_missing_header_writes_nothing():
     transport = FakeTransport([["Company", "Role", "Status"]])
     with pytest.raises(SheetsError, match="Date Applied"):
         _append(transport)
-    assert all(call[0] != "PUT" for call in transport.calls)
+    assert all("batchUpdate" not in call[1] for call in transport.calls)
 
 
 def test_append_empty_sheet_fails():
     transport = FakeTransport([])
-    with pytest.raises(SheetsError, match="header"):
+    with pytest.raises(SheetsError, match="empty"):
         _append(transport)
 
 

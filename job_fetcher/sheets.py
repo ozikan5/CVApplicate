@@ -5,9 +5,11 @@ grant) and the Sheets REST API are both plain HTTPS + JSON, so this adds no
 dependency. Every network call goes through a ``transport`` callable so tests
 never touch the network.
 
-The sheet's own header row decides where each value lands: columns are found
+The sheet's own header row decides where each value lands: it is found among
+the top rows (so a title block above the table is fine) and columns are matched
 by header name (case- and whitespace-insensitive), so the tracker's layout can
-change without a code change. Columns the config does not name are left blank.
+change without a code change. Only the configured cells are written; every
+other cell in the row is left exactly as it was.
 """
 
 from __future__ import annotations
@@ -214,6 +216,9 @@ def _describe(status, reply) -> str:
 
 # --- sheet layout -----------------------------------------------------------
 
+HEADER_SCAN_ROWS = 20
+
+
 def _norm(text) -> str:
     return " ".join(str(text or "").split()).casefold()
 
@@ -227,10 +232,9 @@ def column_letter(index: int) -> str:
     return letters
 
 
-def header_indexes(headers, columns):
-    """Map each field to its column index, by header name."""
+def _match_headers(row, columns):
     positions = {}
-    for i, header in enumerate(headers):
+    for i, header in enumerate(row):
         key = _norm(header)
         if key:
             positions.setdefault(key, []).append(i)
@@ -241,15 +245,30 @@ def header_indexes(headers, columns):
             missing.append(columns[field])
         elif len(found) > 1:
             raise SheetsError(
-                f"the header {columns[field]!r} appears more than once in row 1")
+                f"the header {columns[field]!r} appears more than once in one row")
         else:
             indexes[field] = found[0]
-    if missing:
+    return indexes, missing
+
+
+def find_header_row(values, columns):
+    """Locate the header row among the top rows (trackers often have a title
+    block above the table). Returns (1-based row number, {field: column index})."""
+    best = None
+    for number, row in enumerate(values[:HEADER_SCAN_ROWS], start=1):
+        indexes, missing = _match_headers(row, columns)
+        if not missing:
+            return number, indexes
+        if indexes and (best is None or len(missing) < len(best[1])):
+            best = (number, missing)
+    if best:
         raise SheetsError(
-            "the sheet's header row has no column named "
-            + ", ".join(repr(m) for m in missing)
+            f"row {best[0]} looks like the header row but has no column named "
+            + ", ".join(repr(m) for m in best[1])
             + " (rename the column, or map it under 'columns' in sheets.local.yaml)")
-    return indexes
+    raise SheetsError(
+        f"no header row with {', '.join(repr(columns[f]) for f in FIELDS)} "
+        f"in the first {HEADER_SCAN_ROWS} rows")
 
 
 def _cell(value: str) -> str:
@@ -258,31 +277,29 @@ def _cell(value: str) -> str:
     return "'" + value if value.startswith(_FORMULA_PREFIXES) else value
 
 
-def build_row(headers, columns, values):
-    indexes = header_indexes(headers, columns)
-    row = [""] * len(headers)
-    for field, index in indexes.items():
-        row[index] = _cell(str(values[field]))
-    return row
+def build_cells(indexes, record):
+    """{column index: cell text} for the configured fields only; nothing else
+    in the row is touched, so formulas and hand-filled columns survive."""
+    return {indexes[field]: _cell(str(record[field])) for field in FIELDS}
 
 
 def _get(row, index) -> str:
     return str(row[index]) if index < len(row) else ""
 
 
-def next_row(values, company_index: int) -> int:
+def next_row(values, company_index: int, header_row: int = 1) -> int:
     """1-based row number just below the last row with a Company value."""
-    last = 1
+    last = header_row
     for number, row in enumerate(values, start=1):
-        if number > 1 and _get(row, company_index).strip():
+        if number > header_row and _get(row, company_index).strip():
             last = number
     return last + 1
 
 
-def find_duplicate(values, indexes, application):
+def find_duplicate(values, indexes, application, header_row: int = 1):
     want = tuple(_norm(application[f]) for f in ("company", "role", "date_applied"))
     for number, row in enumerate(values, start=1):
-        if number == 1:
+        if number <= header_row:
             continue
         have = tuple(_norm(_get(row, indexes[f]))
                      for f in ("company", "role", "date_applied"))
@@ -301,6 +318,12 @@ def _as_date(value):
     except ValueError:
         raise SheetsError(
             f"date_applied must be YYYY-MM-DD, got {value!r}") from None
+
+
+def format_date(day, date_format: str) -> str:
+    # "%-d" (day without a leading zero) is not portable strftime, so expand
+    # it here.
+    return day.strftime(date_format.replace("%-d", str(day.day)))
 
 
 def _quote_tab(tab: str) -> str:
@@ -336,30 +359,31 @@ def append_application(config, application, *, client_id, client_secret,
     if status != 200:
         raise SheetsError(f"could not read the sheet ({_describe(status, reply)})")
     values = reply.get("values") or []
-    if not values or not any(str(h).strip() for h in values[0]):
-        raise SheetsError(f"tab {tab!r} has no header row")
-    headers = values[0]
+    if not any(any(str(c).strip() for c in row) for row in values):
+        raise SheetsError(f"tab {tab!r} is empty; it needs a header row")
 
     record = {
         "company": company,
         "role": role,
-        "date_applied": day.strftime(config["date_format"]),
+        "date_applied": format_date(day, config["date_format"]),
         "status": config["status"],
     }
-    indexes = header_indexes(headers, config["columns"])
-    duplicate = find_duplicate(values, indexes, record)
+    header_row, indexes = find_header_row(values, config["columns"])
+    duplicate = find_duplicate(values, indexes, record, header_row)
     if duplicate:
         return {"appended": False, "reason": "duplicate", "tab": tab, "row": duplicate}
 
-    row_values = build_row(headers, config["columns"], record)
-    number = next_row(values, indexes["company"])
-    target = (f"{_quote_tab(tab)}!A{number}:"
-              f"{column_letter(len(headers) - 1)}{number}")
-    body = json.dumps({"range": target, "majorDimension": "ROWS",
-                       "values": [row_values]})
-    url = (f"{base}/values/{urllib.parse.quote(target, safe='')}"
-           "?valueInputOption=USER_ENTERED")
-    status, reply = transport("PUT", url,
+    number = next_row(values, indexes["company"], header_row)
+    cells = build_cells(indexes, record)
+    body = json.dumps({
+        "valueInputOption": "USER_ENTERED",
+        "data": [
+            {"range": f"{_quote_tab(tab)}!{column_letter(i)}{number}",
+             "majorDimension": "ROWS", "values": [[text]]}
+            for i, text in sorted(cells.items())
+        ],
+    })
+    status, reply = transport("POST", f"{base}/values:batchUpdate",
                               dict(auth, **{"Content-Type": "application/json"}), body)
     if status != 200:
         raise SheetsError(f"could not write the row ({_describe(status, reply)})")
